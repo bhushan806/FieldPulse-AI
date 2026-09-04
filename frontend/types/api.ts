@@ -13,7 +13,7 @@
 // Enums
 // ---------------------------------------------------------------------------
 
-export type UserRole = "site_engineer" | "project_manager" | "hq_admin" | "auditor";
+export type UserRole = "site_engineer" | "project_manager" | "hq_admin" | "auditor" | "platform_admin";
 
 export type MediaType = "photo" | "video" | "voice" | "qr";
 

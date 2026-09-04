@@ -1,0 +1,121 @@
+"""
+backend/app/db/mongo.py
+Motor async MongoDB client, database/collection accessors, and index creation.
+"""
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import ASCENDING, GEOSPHERE
+from app.core.config import settings
+
+
+_client: AsyncIOMotorClient | None = None
+
+
+def get_client() -> AsyncIOMotorClient:
+    global _client
+    if _client is None:
+        _client = AsyncIOMotorClient(
+            settings.MONGO_URI,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+        )
+    return _client
+
+def get_database() -> AsyncIOMotorDatabase:
+    return get_client()[settings.MONGO_DB_NAME]
+
+
+# ---------------------------------------------------------------------------
+# Collection helpers
+# ---------------------------------------------------------------------------
+
+def get_users_collection():
+    return get_database()["users"]
+
+
+def get_projects_collection():
+    return get_database()["projects"]
+
+
+def get_activities_collection():
+    return get_database()["schedule_activities"]
+
+
+def get_captures_collection():
+    return get_database()["captures"]
+
+
+def get_audit_logs_collection():
+    return get_database()["audit_logs"]
+
+
+def get_notifications_collection():
+    return get_database()["notifications"]
+
+
+def get_otp_collection():
+    return get_database()["otp_store"]
+
+
+# ---------------------------------------------------------------------------
+# Startup / shutdown
+# ---------------------------------------------------------------------------
+
+async def connect_db():
+    """Called at application startup — verifies connection and creates indexes."""
+    try:
+        client = get_client()
+        # Ping to confirm connection (5 second timeout)
+        await asyncio.wait_for(
+            client.admin.command("ping"),
+            timeout=10.0
+        )
+        print(f"[DB] ✅ Connected to MongoDB: {settings.MONGO_DB_NAME}")
+        await create_indexes()
+    except Exception as exc:
+        print(f"[DB] WARNING MongoDB connection failed at startup: {exc}")
+        print("[DB] The application will start, but database requests will fail until resolved.")
+        print("[DB]    Check: Is your Atlas cluster paused? Is your IP whitelisted?")
+
+
+async def disconnect_db():
+    """Called at application shutdown."""
+    global _client
+    if _client is not None:
+        _client.close()
+        _client = None
+        print("[DB] MongoDB connection closed.")
+
+
+async def create_indexes():
+    """Create all required indexes."""
+    db = get_database()
+
+    # users
+    await db["users"].create_index([("phone", ASCENDING)], sparse=True)
+    await db["users"].create_index([("email", ASCENDING)], unique=True, sparse=True)
+
+    # schedule_activities
+    await db["schedule_activities"].create_index([("project_id", ASCENDING)])
+    await db["schedule_activities"].create_index(
+        [("location", GEOSPHERE)], sparse=True
+    )
+
+    # captures
+    await db["captures"].create_index([("project_id", ASCENDING)])
+    await db["captures"].create_index([("user_id", ASCENDING)])
+    await db["captures"].create_index([("status", ASCENDING)])
+
+    # audit_logs
+    await db["audit_logs"].create_index([("target_id", ASCENDING)])
+    await db["audit_logs"].create_index([("actor_user_id", ASCENDING)])
+
+    # notifications
+    await db["notifications"].create_index([("project_id", ASCENDING)])
+
+    # otp_store — TTL index: documents auto-expire after 300 seconds (5 min)
+    await db["otp_store"].create_index(
+        [("created_at", ASCENDING)], expireAfterSeconds=300
+    )
+
+    print("[DB] All indexes created / verified.")
