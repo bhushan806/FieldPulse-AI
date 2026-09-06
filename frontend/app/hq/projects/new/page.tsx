@@ -17,15 +17,15 @@ export default function NewProjectPage() {
     const formData = new FormData(e.currentTarget)
     const data = {
       name: formData.get("name") as string,
-      location_lat: parseFloat(formData.get("lat") as string) || 0,
-      location_lng: parseFloat(formData.get("lng") as string) || 0,
-      start_date: formData.get("start_date") as string,
-      end_date: formData.get("end_date") as string,
+      locationLat: parseFloat(formData.get("lat") as string) || 0,
+      locationLng: parseFloat(formData.get("lng") as string) || 0,
+      startDate: formData.get("start_date") as string,
+      endDate: formData.get("end_date") as string,
     }
 
     try {
       const res = await apiClient.post("/api/projects", data)
-      router.push(`/hq/projects/${res.data.id}/managers`)
+      router.push(`/hq/projects/${res.data.id}/setup`)
     } catch (err: any) {
       setError(err.message || "Failed to create project")
     } finally {

@@ -37,8 +37,8 @@ export default function LoginAdminPage() {
         throw new Error("Unauthorized. Platform Admin only.");
       }
       setAuth({
-        accessToken: auth.access_token,
-        refreshToken: auth.refresh_token ?? "",
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken ?? "",
         role: auth.role,
       });
       try {

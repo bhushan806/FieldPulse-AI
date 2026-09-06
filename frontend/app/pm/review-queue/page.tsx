@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Check, X, Filter, ChevronRight, AlertCircle, Camera, CheckSquare } from 'lucide-react';
 import { ReviewQueueItem } from '@/types/api';
-import apiClient from '@/lib/apiClient';
+import { listReviewQueue, approveCapture, rejectCapture } from '@/lib/api/dashboard';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { useUIStore } from '@/store/uiStore';
@@ -18,34 +18,10 @@ export default function ReviewQueue() {
   const { addNotification } = useUIStore();
 
   useEffect(() => {
-    // Mock fetch
     const fetchQueue = async () => {
       try {
-        // const res = await apiClient.get(API_ENDPOINTS.review.queue);
-        // setItems(res.data.items);
-        
-        // Mock data
-        setItems([
-          {
-            id: 'cap_123',
-            userId: 'eng_1',
-            projectId: 'p1',
-            mediaType: 'photo',
-            mediaUrl: 'https://images.unsplash.com/photo-1541888087616-56af7b4f51fa?q=80&w=600&auto=format&fit=crop',
-            gps: { type: 'Point', coordinates: [94.92, 27.47] },
-            qrCodeValue: null,
-            transcribedText: 'Started pouring the foundation for section B.',
-            extractedEntities: { activity: 'Foundation', location: 'Section B', quantity: '', status: 'Started' },
-            cvClassification: { label: 'Concrete Pouring', confidence: 0.65 }, // Low confidence
-            matchedActivityId: 'act_456',
-            confidenceScore: 0.65,
-            status: 'pending_review',
-            rejectionReason: null,
-            createdAt: new Date().toISOString(),
-            submittedBy: { id: 'eng_1', name: 'Rahul Sharma' },
-            suggestedActivity: { id: 'act_456', activityCode: 'FND-02', activityName: 'Section B Foundation' }
-          }
-        ]);
+        const res = await listReviewQueue();
+        setItems(res.items);
       } catch (error) {
         addNotification({ type: 'error', message: 'Failed to load review queue.' });
       } finally {
@@ -59,10 +35,15 @@ export default function ReviewQueue() {
   const handleApprove = async () => {
     if (!selectedItem) return;
     try {
-      // await apiClient.post(API_ENDPOINTS.review.approve(selectedItem.id), {
-      //   matchedActivityId: selectedItem.matchedActivityId,
-      //   percentCompleteOverride: overridePercent ? parseInt(overridePercent) : null
-      // });
+      if (!selectedItem.suggestedActivity?.id) {
+        addNotification({ type: 'error', message: 'No matched activity found for approval.' });
+        return;
+      }
+      
+      await approveCapture(selectedItem.id, {
+        matchedActivityId: selectedItem.suggestedActivity.id,
+        percentCompleteOverride: overridePercent ? parseInt(overridePercent) : undefined
+      });
       
       addNotification({ type: 'success', message: 'Capture approved successfully.' });
       setItems(items.filter(i => i.id !== selectedItem.id));
@@ -76,7 +57,7 @@ export default function ReviewQueue() {
   const handleReject = async () => {
     if (!selectedItem || !rejectionReason) return;
     try {
-      // await apiClient.post(API_ENDPOINTS.review.reject(selectedItem.id), { reason: rejectionReason });
+      await rejectCapture(selectedItem.id, { reason: rejectionReason });
       
       addNotification({ type: 'info', message: 'Capture rejected and sent back.' });
       setItems(items.filter(i => i.id !== selectedItem.id));

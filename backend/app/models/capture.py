@@ -23,6 +23,7 @@ class CaptureStatus(str, Enum):
     pending_review = "pending_review"
     approved = "approved"
     rejected = "rejected"
+    processing_failed = "processing_failed"
 
 
 class CvClassification(BaseModel):

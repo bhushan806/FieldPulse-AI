@@ -10,9 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
 from app.core.deps import get_current_user, require_hq_admin, require_pm_or_above
-from app.db.mongo import get_projects_collection, get_users_collection, get_activities_collection
+from app.db.mongo import get_projects_collection, get_users_collection, get_activities_collection, get_database
 from app.models.project import ProjectInDB, ProjectPublic, RosterEntry, RosterStatus
 from app.models.user import UserInDB, UserRole
+from app.models.invitation import InvitationInDB, InvitationStatus
+from app.services.email import send_invitation_email
+import uuid
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -112,9 +115,11 @@ async def bulk_create_schedule(project_id: str, body: ScheduleBulkCreateBody, cu
 
 @router.post("/{project_id}/managers", response_model=InviteTokenResponse)
 async def add_project_manager(project_id: str, body: ManagerInviteBody, current_user: UserInDB = Depends(require_hq_admin)):
-    """Add a PM to a project. Creates the user if they don't exist (HQ only)."""
+    """Add a PM to a project. Creates the user and sends an invitation (HQ only)."""
     users_col = get_users_collection()
     projects_col = get_projects_collection()
+    db = get_database()
+    invites_col = db["invitations"]
     
     proj = await projects_col.find_one({"_id": ObjectId(project_id)})
     if not proj:
@@ -124,17 +129,17 @@ async def add_project_manager(project_id: str, body: ManagerInviteBody, current_
     existing = await users_col.find_one({"email": email})
     
     user_id_str = None
-    invite_token = "demo-invite-token-" + email  # For demo purposes
     
     if existing:
-        # Just link the project
+        # Just link the project if not already linked
         user_id_str = str(existing["_id"])
-        await users_col.update_one(
-            {"_id": existing["_id"]},
-            {"$addToSet": {"project_ids": project_id}}
-        )
+        if project_id not in existing.get("project_ids", []):
+            await users_col.update_one(
+                {"_id": existing["_id"]},
+                {"$addToSet": {"project_ids": project_id}}
+            )
     else:
-        # Create invited PM
+        # Create invited user without password
         oid = ObjectId()
         user_id_str = str(oid)
         doc = {
@@ -153,9 +158,31 @@ async def add_project_manager(project_id: str, body: ManagerInviteBody, current_
     if not proj.get("pm_user_id"):
         await projects_col.update_one({"_id": ObjectId(project_id)}, {"$set": {"pm_user_id": user_id_str}})
         
+    # Create formal invitation
+    token = str(uuid.uuid4())
+    expires = datetime.utcnow() + timedelta(days=7)
+    invite_doc = {
+        "_id": ObjectId(),
+        "email": email,
+        "project_id": project_id,
+        "role": UserRole.project_manager.value,
+        "invited_by_user_id": str(current_user.id),
+        "token": token,
+        "status": InvitationStatus.pending.value,
+        "expires_at": expires,
+        "created_at": datetime.utcnow(),
+        "accepted_at": None
+    }
+    await invites_col.insert_one(invite_doc)
+    
+    # Send email
+    FRONTEND_URL = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
+    invite_link = f"{FRONTEND_URL}/set-password?token={token}"
+    await send_invitation_email(email, invite_link, proj.get("name", "Project"), "Project Manager")
+        
     return InviteTokenResponse(
-        invite_token=invite_token, 
-        message=f"PM added successfully. Send this invite token to {email} to set their password."
+        invite_token=token, 
+        message=f"PM added and invitation sent to {email}."
     )
 
 

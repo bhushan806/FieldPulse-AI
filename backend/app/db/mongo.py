@@ -70,7 +70,7 @@ async def connect_db():
             client.admin.command("ping"),
             timeout=10.0
         )
-        print(f"[DB] ✅ Connected to MongoDB: {settings.MONGO_DB_NAME}")
+        print(f"[DB] Connected to MongoDB: {settings.MONGO_DB_NAME}")
         await create_indexes()
     except Exception as exc:
         print(f"[DB] WARNING MongoDB connection failed at startup: {exc}")

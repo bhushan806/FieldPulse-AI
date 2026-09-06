@@ -67,7 +67,7 @@ async def seed():
 
     # Test connection
     await client.admin.command("ping")
-    print(f"[SEED] ✅ Connected to MongoDB: {MONGO_DB_NAME}")
+    print(f"[SEED] Connected to MongoDB: {MONGO_DB_NAME}")
 
     pm_id = None
 
@@ -169,7 +169,7 @@ async def seed():
         print("[SEED] Linked project to PM user.")
 
     client.close()
-    print("\n[SEED] ✅ Done! Login credentials:")
+    print("\n[SEED] Done! Login credentials:")
     print("  PM:      pm@fieldpulse.dev  / Password123!")
     print("  HQ:      hq@fieldpulse.dev  / Password123!")
     print("  Auditor: auditor@fieldpulse.dev / Password123!")

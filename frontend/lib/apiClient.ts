@@ -9,22 +9,64 @@ export function getTokens() {
   return { access: accessToken, refresh: refreshToken };
 }
 
+const isObject = (o: any) => o === Object(o) && !Array.isArray(o) && typeof o !== 'function' && !(o instanceof FormData);
+
+const toCamel = (str: string) => str.replace(/([-_][a-z])/ig, ($1) => $1.toUpperCase().replace('-', '').replace('_', ''));
+const toSnake = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+
+export const keysToCamel = function (o: any): any {
+  if (isObject(o)) {
+    const n: any = {};
+    Object.keys(o).forEach((k) => {
+      n[toCamel(k)] = keysToCamel(o[k]);
+    });
+    return n;
+  } else if (Array.isArray(o)) {
+    return o.map((i) => keysToCamel(i));
+  }
+  return o;
+};
+
+export const keysToSnake = function (o: any): any {
+  if (isObject(o)) {
+    const n: any = {};
+    Object.keys(o).forEach((k) => {
+      n[toSnake(k)] = keysToSnake(o[k]);
+    });
+    return n;
+  } else if (Array.isArray(o)) {
+    return o.map((i) => keysToSnake(i));
+  }
+  return o;
+};
+
 const apiClient = axios.create({
   baseURL: BASE_URL,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor — attach JWT
+// Request interceptor — attach JWT and convert payload to snake_case
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (config.data && !(config.data instanceof FormData)) {
+    config.data = keysToSnake(config.data);
+  }
+  if (config.params) {
+    config.params = keysToSnake(config.params);
+  }
   return config;
 });
 
-// Response interceptor — handle 401 refresh
+// Response interceptor — handle 401 refresh and convert payload to camelCase
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data) {
+      response.data = keysToCamel(response.data);
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     if (error.response?.status === 401 && !originalRequest._retry) {

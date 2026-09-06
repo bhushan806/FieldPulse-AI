@@ -54,8 +54,8 @@ function SetPasswordForm() {
 
       // Persist auth state — axios wraps response body in .data
       setAuth({
-        accessToken: res.data.access_token,
-        refreshToken: res.data.refresh_token ?? "",
+        accessToken: res.data.accessToken,
+        refreshToken: res.data.refreshToken ?? "",
         role: res.data.role,
       });
 

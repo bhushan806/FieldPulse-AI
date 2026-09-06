@@ -8,6 +8,8 @@ from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.db.mongo import connect_db, disconnect_db
 from app.websocket.manager import ws_manager
@@ -21,6 +23,8 @@ from app.api.review_queue import router as review_queue_router
 from app.api.dashboard import router as dashboard_router
 from app.api.alerts import router as alerts_router
 from app.api.reports import router as reports_router
+from app.api.documents import router as documents_router
+from app.api.issues import router as issues_router
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +58,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount local uploads for media fallback
+os.makedirs(os.path.join(os.getcwd(), "uploads"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # ---------------------------------------------------------------------------
 # Register API routers
 # ---------------------------------------------------------------------------
@@ -66,6 +74,8 @@ app.include_router(review_queue_router)
 app.include_router(dashboard_router)
 app.include_router(alerts_router)
 app.include_router(reports_router)
+app.include_router(documents_router)
+app.include_router(issues_router)
 
 
 # ---------------------------------------------------------------------------

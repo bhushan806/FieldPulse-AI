@@ -108,31 +108,38 @@ async def submit_capture(
     transcribed_text: Optional[str] = None
     extracted_entities = None
     cv_classification = None
+    matched_id = None
+    confidence = 0.0
+    cap_status = CaptureStatus.processing
 
-    if audio_bytes:
-        transcribed_text = await transcribe_audio(audio_bytes)
-        extracted_entities = await extract_entities(transcribed_text)
+    try:
+        if audio_bytes:
+            transcribed_text = await transcribe_audio(audio_bytes)
+            extracted_entities = await extract_entities(transcribed_text)
 
-    if image_bytes:
-        label, conf = await classify_image(image_bytes)
-        cv_classification = CvClassification(label=label, confidence=conf)
-        # Also try to extract entities from label text
-        if not extracted_entities:
-            extracted_entities = await extract_entities(label)
+        if image_bytes:
+            label, conf = await classify_image(image_bytes)
+            cv_classification = CvClassification(label=label, confidence=conf)
+            # Also try to extract entities from label text
+            if not extracted_entities:
+                extracted_entities = await extract_entities(label)
 
-    if qr_code_value and not extracted_entities:
-        extracted_entities = await extract_entities(qr_code_value)
+        if qr_code_value and not extracted_entities:
+            extracted_entities = await extract_entities(qr_code_value)
 
-    # --- Activity matching via fusion ---
-    activities = await _load_activities(project_id)
-    matched_id, confidence, cap_status = await match_capture_to_activity(
-        activities=activities,
-        cv_classification=cv_classification,
-        extracted_entities=extracted_entities,
-        qr_code_value=qr_code_value,
-        gps=gps,
-        transcribed_text=transcribed_text,
-    )
+        # --- Activity matching via fusion ---
+        activities = await _load_activities(project_id)
+        matched_id, confidence, cap_status = await match_capture_to_activity(
+            activities=activities,
+            cv_classification=cv_classification,
+            extracted_entities=extracted_entities,
+            qr_code_value=qr_code_value,
+            gps=gps,
+            transcribed_text=transcribed_text,
+        )
+    except Exception as e:
+        print(f"[Captures] AI processing failed: {e}")
+        cap_status = CaptureStatus.processing_failed
 
     # --- Persist capture document ---
     doc = {

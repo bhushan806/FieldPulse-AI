@@ -44,8 +44,8 @@ export default function LoginOfficePage() {
     try {
       const auth = await login(data.email, data.password);
       setAuth({
-        accessToken: auth.access_token,
-        refreshToken: auth.refresh_token ?? "",
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken ?? "",
         role: auth.role,
       });
       try {

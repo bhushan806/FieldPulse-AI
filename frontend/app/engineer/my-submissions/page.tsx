@@ -18,43 +18,7 @@ export default function MySubmissions() {
         const res = await apiClient.get(API_ENDPOINTS.captures.mine);
         setSubmissions(res.data.items || []);
       } catch (error) {
-        // Mock data
-        setSubmissions([
-          {
-            id: '1',
-            userId: 'u1',
-            projectId: 'p1',
-            mediaType: 'photo',
-            mediaUrl: 'https://images.unsplash.com/photo-1541888087616-56af7b4f51fa?q=80&w=300&auto=format&fit=crop',
-            gps: { type: 'Point', coordinates: [94.92, 27.47] },
-            qrCodeValue: null,
-            transcribedText: null,
-            extractedEntities: { activity: 'Foundation', location: 'Sec 1', quantity: '', status: 'progress' },
-            cvClassification: null,
-            matchedActivityId: 'a1',
-            confidenceScore: 0.95,
-            status: 'approved',
-            rejectionReason: null,
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '2',
-            userId: 'u1',
-            projectId: 'p1',
-            mediaType: 'photo',
-            mediaUrl: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?q=80&w=300&auto=format&fit=crop',
-            gps: { type: 'Point', coordinates: [94.92, 27.47] },
-            qrCodeValue: null,
-            transcribedText: null,
-            extractedEntities: null,
-            cvClassification: null,
-            matchedActivityId: null,
-            confidenceScore: 0.5,
-            status: 'pending_review',
-            rejectionReason: null,
-            createdAt: new Date(Date.now() - 86400000).toISOString()
-          }
-        ]);
+        console.error("Failed to fetch submissions:", error);
       } finally {
         setLoading(false);
       }

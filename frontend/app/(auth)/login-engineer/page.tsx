@@ -58,8 +58,8 @@ export default function LoginEngineerPage() {
     try {
       const auth = await verifyOtp(phone, data.otp);
       setAuth({
-        accessToken: auth.access_token,
-        refreshToken: auth.refresh_token ?? "",
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken ?? "",
         role: auth.role,
       });
       if (auth.user) updateUser(auth.user);

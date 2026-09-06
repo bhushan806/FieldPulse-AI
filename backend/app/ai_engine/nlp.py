@@ -32,9 +32,9 @@ If a field cannot be determined leave it as an empty string "".
 # HuggingFace Inference API call
 # ---------------------------------------------------------------------------
 
-async def _hf_extract(text: str) -> Optional[Dict[str, str]]:
+async def _hf_extract(text: str) -> Dict[str, str]:
     if not settings.HF_INFERENCE_API_KEY:
-        return None
+        raise ValueError("HF_INFERENCE_API_KEY is not configured. Cannot process NLP extraction.")
 
     url = f"https://api-inference.huggingface.co/models/{settings.HF_MISTRAL_MODEL}"
     headers = {"Authorization": f"Bearer {settings.HF_INFERENCE_API_KEY}"}
@@ -57,43 +57,10 @@ async def _hf_extract(text: str) -> Optional[Dict[str, str]]:
         match = re.search(r"\{.*?\}", generated, re.DOTALL)
         if match:
             return json.loads(match.group())
+        raise ValueError("No JSON block found in HuggingFace response.")
     except Exception as exc:
         print(f"[NLP] HuggingFace extraction error: {exc}")
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Regex fallback
-# ---------------------------------------------------------------------------
-
-def _regex_extract(text: str) -> Dict[str, str]:
-    """
-    Very simple keyword-based extraction for dev/test mode.
-    Looks for patterns like "pipeline laying", "50%", "km 12", etc.
-    """
-    activities = [
-        "pipeline laying", "welding", "excavation", "concrete pouring",
-        "road construction", "equipment installation", "inspection",
-        "testing", "electrical work", "painting",
-    ]
-    activity = ""
-    for act in activities:
-        if act in text.lower():
-            activity = act
-            break
-
-    quantity_match = re.search(r"\b(\d+\.?\d*\s*(%|km|m|ft|kg|ton|unit|meter)s?)\b", text, re.I)
-    quantity = quantity_match.group(1) if quantity_match else ""
-
-    status_keywords = ["completed", "in progress", "started", "finished", "ongoing", "done", "pending"]
-    status = ""
-    for kw in status_keywords:
-        if kw in text.lower():
-            status = kw
-            break
-
-    return {"activity": activity, "location": "", "quantity": quantity, "status": status}
+        raise RuntimeError(f"HuggingFace API failed: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -103,14 +70,12 @@ def _regex_extract(text: str) -> Dict[str, str]:
 async def extract_entities(text: str) -> ExtractedEntities:
     """
     Extract structured entities from free-form text.
-    Tries HuggingFace Mistral first, falls back to regex.
+    Raises exception on failure instead of faking it.
     """
     if not text or not text.strip():
         return ExtractedEntities()
 
     result = await _hf_extract(text)
-    if result is None:
-        result = _regex_extract(text)
 
     return ExtractedEntities(
         activity=result.get("activity", ""),

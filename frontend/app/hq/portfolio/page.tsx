@@ -10,14 +10,39 @@ const PortfolioMap = dynamic(() => import('@/components/hq/PortfolioMap'), {
   loading: () => <div className="w-full h-full bg-bg-muted animate-pulse rounded-2xl flex items-center justify-center text-text-muted font-semibold border border-border">Loading Map...</div>
 });
 
+import { useEffect, useState } from 'react';
+import apiClient from '@/lib/apiClient';
+
 export default function PortfolioDashboard() {
   const router = useRouter();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const projects = [
-    { id: 'p1', name: 'Sector 4 Pipeline', status: 'on_track', percent: 82, pm: 'Rahul Sharma', lastUpdate: '2h ago', lat: 27.47, lng: 94.92 },
-    { id: 'p2', name: 'Pump Station B', status: 'delayed', percent: 45, pm: 'Amit Kumar', lastUpdate: '1d ago', lat: 27.50, lng: 94.85 },
-    { id: 'p3', name: 'Storage Tank 12', status: 'at_risk', percent: 68, pm: 'Priya Patel', lastUpdate: '5h ago', lat: 27.42, lng: 94.95 },
-  ];
+  useEffect(() => {
+    apiClient.get('/api/dashboard/portfolio')
+      .then(res => {
+        setData(res.data);
+      })
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="w-full h-[500px] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+
+  const projects = data?.projects?.map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    status: p.status,
+    percent: p.percentComplete || 0,
+    pm: 'Assigned PM',
+    lastUpdate: 'Recently',
+    lat: p.location?.coordinates?.[1] || 27.47,
+    lng: p.location?.coordinates?.[0] || 94.92
+  })) || [];
 
   return (
     <div className="space-y-6 animate-in">
@@ -37,10 +62,10 @@ export default function PortfolioDashboard() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { title: 'Total Projects', value: '12', icon: Globe, color: 'text-brand-600', bg: 'bg-brand-50', border: 'border-brand-200' },
-          { title: 'On Track', value: '8', icon: CheckCircle2, color: 'text-success', bg: 'bg-success-bg', border: 'border-success/20' },
-          { title: 'At Risk', value: '3', icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-bg', border: 'border-warning/20' },
-          { title: 'Delayed', value: '1', icon: Clock, color: 'text-danger', bg: 'bg-danger-bg', border: 'border-danger/20' },
+          { title: 'Total Projects', value: data?.total_projects || 0, icon: Globe, color: 'text-brand-600', bg: 'bg-brand-50', border: 'border-brand-200' },
+          { title: 'On Track', value: data?.on_track || 0, icon: CheckCircle2, color: 'text-success', bg: 'bg-success-bg', border: 'border-success/20' },
+          { title: 'At Risk', value: data?.at_risk || 0, icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-bg', border: 'border-warning/20' },
+          { title: 'Delayed', value: data?.delayed || 0, icon: Clock, color: 'text-danger', bg: 'bg-danger-bg', border: 'border-danger/20' },
         ].map((kpi, i) => (
           <div key={i} className={`card p-5 border shadow-sm ${kpi.border} hover:shadow-md transition-shadow cursor-pointer`}>
             <div className="flex justify-between items-start mb-4">

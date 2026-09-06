@@ -6,6 +6,7 @@ import { useCaptureStore } from '@/store/captureStore';
 import { MapPin, Clock, CheckCircle2, AlertTriangle, CloudOff } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ScheduleActivity } from '@/types/api';
+import { listActivities } from '@/lib/api/dashboard';
 
 // Dynamically import map component with SSR disabled
 const ActivityMap = dynamic(() => import('@/components/schedule/ActivityMap'), { 
@@ -18,35 +19,25 @@ export default function EngineerDashboard() {
   const { pendingCount, isOffline } = useCaptureStore();
   const [activities, setActivities] = useState<ScheduleActivity[]>([]);
 
-  // Mock data for demo purposes until real API hook is wired
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    setActivities([
-      {
-        id: '1',
-        projectId: 'p1',
-        activityCode: 'EXC-01',
-        activityName: 'Site Excavation',
-        location: { type: 'Point', coordinates: [94.92, 27.47] },
-        plannedStart: new Date().toISOString(),
-        plannedEnd: new Date(Date.now() + 86400000).toISOString(),
-        percentComplete: 45,
-        status: 'in_progress',
-        keywords: ['excavation']
-      },
-      {
-        id: '2',
-        projectId: 'p1',
-        activityCode: 'PIP-04',
-        activityName: 'Pipeline Welding Segment A',
-        location: { type: 'Point', coordinates: [94.93, 27.46] },
-        plannedStart: new Date(Date.now() - 86400000).toISOString(),
-        plannedEnd: new Date().toISOString(),
-        percentComplete: 90,
-        status: 'delayed',
-        keywords: ['welding', 'pipeline']
+    const fetchActivities = async () => {
+      try {
+        const projectId = user?.projectIds?.[0];
+        if (projectId) {
+          const res = await listActivities(projectId);
+          setActivities(res.items || []);
+        }
+      } catch (error) {
+        console.error("Failed to load activities", error);
+      } finally {
+        setLoading(false);
       }
-    ]);
-  }, []);
+    };
+    
+    fetchActivities();
+  }, [user]);
 
   return (
     <div className="p-4 space-y-6 animate-in">
