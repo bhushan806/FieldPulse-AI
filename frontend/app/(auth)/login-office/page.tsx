@@ -132,7 +132,7 @@ export default function LoginOfficePage() {
                   {...register("email")}
                   type="email"
                   placeholder="you@fieldpulse.dev"
-                  className="w-full bg-white border border-border hover:border-border-strong focus:border-brand-500 rounded-xl pl-10 pr-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all text-sm"
+                  className="w-full bg-transparent border border-border hover:border-border-strong focus:border-brand-500 rounded-xl pl-10 pr-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all text-sm"
                 />
               </div>
               {errors.email && (
@@ -150,7 +150,7 @@ export default function LoginOfficePage() {
                   {...register("password")}
                   type="password"
                   placeholder="••••••••"
-                  className="w-full bg-white border border-border hover:border-border-strong focus:border-brand-500 rounded-xl pl-10 pr-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all text-sm"
+                  className="w-full bg-transparent border border-border hover:border-border-strong focus:border-brand-500 rounded-xl pl-10 pr-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all text-sm"
                 />
               </div>
               {errors.password && (

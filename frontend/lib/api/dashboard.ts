@@ -14,6 +14,7 @@ import type {
   ReportExport,
   ReviewQueueListResponse,
   ScheduleListResponse,
+  ForecastResponse,
 } from "@/types/api";
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -24,6 +25,10 @@ export async function getProjectDashboard(projectId: string): Promise<DashboardM
 
 export async function getPortfolioDashboard(): Promise<PortfolioDashboard> {
   return apiRequest<PortfolioDashboard>("/api/dashboard/portfolio");
+}
+
+export async function getProjectForecast(projectId: string): Promise<ForecastResponse> {
+  return apiRequest<ForecastResponse>(`/api/ai/forecast/${projectId}`);
 }
 
 // ── Schedule ───────────────────────────────────────────────────────────────

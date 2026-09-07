@@ -1,17 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, CheckSquare, CalendarDays, Users, Menu, Bell, LogOut, Search } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, CalendarDays, Users, Menu, Bell, LogOut, Search, ChevronDown } from 'lucide-react';
 import { RoleGuard } from '@/components/shared/RoleGuard';
 import { useAuthStore } from '@/store/authStore';
 
 export default function PMLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, selectedProjectId, setSelectedProject } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (user?.project_ids && user.project_ids.length > 0 && !selectedProjectId) {
+      setSelectedProject(user.project_ids[0]);
+    }
+  }, [user, selectedProjectId, setSelectedProject]);
 
   const navItems = [
     { name: 'Dashboard', href: '/pm/dashboard', icon: LayoutDashboard },
@@ -32,17 +38,32 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
           />
         )}
 
+        {/* Desktop Sidebar Spacer */}
+        <div className="hidden lg:block w-64 shrink-0" />
+
         {/* Sidebar */}
         <aside className={`
-          fixed lg:static inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border
+          fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border
           transform transition-transform duration-300 ease-in-out flex flex-col
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           <div className="p-6 border-b border-border">
-            <h1 className="text-xl font-bold text-text-primary">
+            <h1 className="text-xl font-bold text-text-primary mb-4">
               FieldPulse <span className="font-light text-brand-500">AI</span>
             </h1>
-            <p className="text-xs text-text-secondary mt-1 uppercase tracking-wider font-semibold">Project Manager</p>
+            
+            <div className="relative">
+              <select 
+                value={selectedProjectId ?? ''}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="w-full appearance-none bg-bg-muted border border-border text-sm text-text-primary px-3 py-2 rounded-lg outline-none focus:border-brand-500 pr-8"
+              >
+                {user?.project_ids?.map((id) => (
+                  <option key={id} value={id}>Project {id}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-text-muted pointer-events-none" />
+            </div>
           </div>
 
           <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
@@ -108,7 +129,9 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3 border-l border-border pl-4">
                 <div className="hidden sm:block text-right">
                   <p className="text-sm font-semibold text-text-primary">{user?.name || 'Project Manager'}</p>
-                  <p className="text-xs text-text-secondary">Project P1</p>
+                  <p className="text-xs text-text-secondary">
+                    {selectedProjectId ? `Project: ${selectedProjectId.slice(0, 8)}...` : 'No Project Selected'}
+                  </p>
                 </div>
                 <div className="w-9 h-9 rounded-full bg-brand-50 border border-brand-500 flex items-center justify-center text-brand-600 font-bold text-sm">
                   {user?.name?.charAt(0) || 'P'}

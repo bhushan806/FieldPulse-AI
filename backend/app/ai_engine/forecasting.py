@@ -29,8 +29,10 @@ def build_s_curve(
     ref = reference_date or datetime.utcnow()
 
     # Determine overall project date range
-    starts = [a.planned_start for a in activities]
-    ends = [a.planned_end for a in activities]
+    starts = [a.planned_start for a in activities if a.planned_start]
+    ends = [a.planned_end for a in activities if a.planned_end]
+    if not starts or not ends:
+        return []
     proj_start = min(starts)
     proj_end = max(ends)
 
@@ -48,11 +50,11 @@ def build_s_curve(
 
     for tick in ticks:
         # Planned: proportion of activities whose planned_end <= tick
-        planned_done = sum(1 for a in activities if a.planned_end <= tick)
+        planned_done = sum(1 for a in activities if a.planned_end and a.planned_end <= tick)
         planned_pct = round((planned_done / total) * 100, 2)
 
         # Actual: weighted average of percent_complete for activities that should have started
-        active = [a for a in activities if a.planned_start <= tick]
+        active = [a for a in activities if a.planned_start and a.planned_start <= tick]
         if active:
             actual_pct = round(sum(a.percent_complete for a in active) / total, 2)
         else:
@@ -81,7 +83,7 @@ def detect_delayed_activities(
     now = today or datetime.utcnow()
     return [
         a for a in activities
-        if a.planned_end < now and a.percent_complete < 100.0
+        if a.planned_end and a.planned_end < now and a.percent_complete < 100.0
         and a.status != ActivityStatus.completed
     ]
 

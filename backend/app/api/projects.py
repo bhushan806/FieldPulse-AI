@@ -2,7 +2,8 @@
 backend/app/api/projects.py
 Endpoints for managing projects, schedule activities, and engineer rosters.
 """
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from typing import List, Optional
 from bson import ObjectId
 
@@ -75,7 +76,9 @@ async def create_project(body: ProjectCreateBody, current_user: UserInDB = Depen
     }
     
     await projects_col.insert_one(doc)
-    return ProjectPublic(**doc)
+    doc_out = dict(doc)
+    doc_out["id"] = str(doc_out.pop("_id"))
+    return ProjectPublic(**doc_out)
 
 
 @router.post("/{project_id}/schedule/bulk")
@@ -103,7 +106,7 @@ async def bulk_create_schedule(project_id: str, body: ScheduleBulkCreateBody, cu
             "planned_start": item.get("planned_start"),
             "planned_end": item.get("planned_end"),
             "percent_complete": 0,
-            "status": "planned",
+            "status": "not_started",
             "keywords": item.get("keywords", [])
         })
         

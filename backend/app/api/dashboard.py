@@ -5,7 +5,7 @@ Dashboard data endpoints.
 GET /api/dashboard/{project_id}  — PM project dashboard (metrics + S-curve)
 GET /api/dashboard/portfolio      — HQ / Auditor portfolio overview
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
@@ -50,7 +50,7 @@ class ProjectSummary(BaseModel):
     name: str
     status: str
     percent_complete: float
-    location: Optional[dict] = None
+    location: Optional[Any] = None
 
 
 class PortfolioDashboard(BaseModel):

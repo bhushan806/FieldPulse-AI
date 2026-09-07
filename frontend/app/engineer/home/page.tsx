@@ -24,7 +24,7 @@ export default function EngineerDashboard() {
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        const projectId = user?.projectIds?.[0];
+        const projectId = user?.project_ids?.[0];
         if (projectId) {
           const res = await listActivities(projectId);
           setActivities(res.items || []);

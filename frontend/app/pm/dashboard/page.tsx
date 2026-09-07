@@ -80,17 +80,17 @@ export default function PMDashboard() {
     <div className="space-y-6 animate-in">
       <PageHeader 
         title="Project Overview" 
-        subtitle={`Monitoring ${dashboardData.project_name}`}
+        subtitle={`Monitoring ${dashboardData.projectName}`}
         badge={{ label: dashboardData.status.replace('_', ' ').toUpperCase(), color: dashboardData.status === 'on_track' ? 'success' : dashboardData.status === 'at_risk' ? 'warning' : 'danger' }}
       />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { title: 'Overall Progress', value: `${dashboardData.overall_percent_complete}%`, icon: TrendingUp, color: 'text-brand-600', bg: 'bg-brand-50' },
-          { title: 'Total Activities', value: dashboardData.total_activities.toString(), icon: CheckSquare, color: 'text-success', bg: 'bg-success-bg' },
-          { title: 'Delayed Activities', value: dashboardData.delayed_activities.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { title: 'Completed Activities', value: dashboardData.completed_activities.toString(), icon: Activity, color: 'text-brand-500', bg: 'bg-brand-50' },
+          { title: 'Overall Progress', value: `${dashboardData.overallPercentComplete}%`, icon: TrendingUp, color: 'text-brand-600', bg: 'bg-brand-50' },
+          { title: 'Total Activities', value: dashboardData.totalActivities.toString(), icon: CheckSquare, color: 'text-success', bg: 'bg-success-bg' },
+          { title: 'Delayed Activities', value: dashboardData.delayedActivities.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { title: 'Completed Activities', value: dashboardData.completedActivities.toString(), icon: Activity, color: 'text-brand-500', bg: 'bg-brand-50' },
         ].map((kpi, i) => (
           <div key={i} className="card p-5 hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
@@ -112,9 +112,9 @@ export default function PMDashboard() {
           </div>
           
           <div className="flex-1 min-h-[300px] w-full">
-            {dashboardData.s_curve && dashboardData.s_curve.length > 0 ? (
+            {dashboardData.sCurve && dashboardData.sCurve.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dashboardData.s_curve} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={dashboardData.sCurve} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorPlanned" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.2}/>
@@ -167,7 +167,7 @@ export default function PMDashboard() {
                     }`}>{alert.type.replace('_', ' ').toUpperCase()}</h4>
                     <p className="text-xs text-text-secondary line-clamp-2 leading-relaxed">{alert.message}</p>
                     <span className="text-[10px] text-text-muted mt-2 block font-medium">
-                      {new Date(alert.created_at).toLocaleString()}
+                      {new Date(alert.createdAt).toLocaleString()}
                     </span>
                   </div>
                 </div>

@@ -59,6 +59,11 @@ function SetPasswordForm() {
         role: res.data.role,
       });
 
+      // Fetch user data right after password set
+      const { getMe } = await import("@/lib/api/auth");
+      const me = await getMe();
+      updateUser(me);
+
       const dest = ROLE_ROUTES[res.data.role] ?? "/";
       router.replace(dest);
     } catch (err: any) {

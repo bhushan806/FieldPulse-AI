@@ -36,10 +36,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           />
         )}
 
+        {/* Desktop Sidebar Spacer */}
+        <div className="hidden lg:block w-64 shrink-0" />
+
         {/* Sidebar */}
         <aside className={`
-          fixed lg:static inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border
-          transform transition-transform duration-300 ease-in-out flex flex-col
+          fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border
+          transform transition-transform duration-300 ease-in-out flex flex-col shadow-sm
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           <div className="p-6 border-b border-border">

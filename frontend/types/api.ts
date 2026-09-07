@@ -87,7 +87,7 @@ export interface CurrentUser {
   phone: string | null;
   email: string | null;
   role: UserRole;
-  projectIds: string[];
+  project_ids: string[];
   createdAt: string; // ISO datetime string
 }
 
@@ -218,6 +218,16 @@ export interface DashboardMetrics {
   completedActivities: number;
   delayedActivities: number;
   sCurve: SCurveDataPoint[];
+}
+
+export interface ForecastDataPoint {
+  date: string;
+  forecastPercent: number;
+}
+
+export interface ForecastResponse {
+  projectId: string;
+  forecast: ForecastDataPoint[];
 }
 
 // ---------------------------------------------------------------------------

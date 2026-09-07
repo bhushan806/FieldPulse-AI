@@ -23,8 +23,8 @@ class ScheduleActivityInDB(BaseModel):
     activity_code: str
     activity_name: str
     location: Optional[GeoPoint] = None
-    planned_start: datetime
-    planned_end: datetime
+    planned_start: Optional[datetime] = None
+    planned_end: Optional[datetime] = None
     percent_complete: float = Field(default=0.0, ge=0, le=100)
     status: ActivityStatus = ActivityStatus.not_started
     keywords: List[str] = []
@@ -41,8 +41,8 @@ class ScheduleActivityPublic(BaseModel):
     activity_code: str
     activity_name: str
     location: Optional[GeoPoint] = None
-    planned_start: datetime
-    planned_end: datetime
+    planned_start: Optional[datetime] = None
+    planned_end: Optional[datetime] = None
     percent_complete: float
     status: ActivityStatus
     keywords: List[str]

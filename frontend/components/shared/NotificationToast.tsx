@@ -1,11 +1,41 @@
 'use client';
 
 import { useUIStore } from '@/store/uiStore';
+import { useAuthStore } from '@/store/authStore';
+import { socket } from '@/lib/socket';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, CheckCircle, AlertTriangle, Info } from 'lucide-react';
-import React from 'react';
+import React, { useEffect } from 'react';
 
 export function NotificationToast() {
-  const { toasts, dismissNotification } = useUIStore();
+  const { toasts, dismissNotification, addNotification } = useUIStore();
+  const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const projectId = user?.project_ids?.[0];
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    socket.connect(projectId);
+
+    const handleNewAlert = (data: any) => {
+      addNotification({
+        type: data.type || 'info',
+        title: data.title || 'New Notification',
+        message: data.message || 'You have a new alert',
+        duration: 8000
+      });
+      // Invalidate queries to refresh dashboard data immediately
+      queryClient.invalidateQueries({ queryKey: ['portfolioDashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+    };
+
+    socket.on('new_alert', handleNewAlert);
+
+    return () => {
+      socket.off('new_alert', handleNewAlert);
+    };
+  }, [projectId, queryClient, addNotification]);
 
   if (toasts.length === 0) return null;
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { apiClient } from "@/lib/apiClient"
+import { apiClient, apiRequest } from "@/lib/apiClient"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Users, FileText, Calendar, Info } from "lucide-react"
 
@@ -132,8 +132,10 @@ function DocumentsTab({ projectId }: { projectId: string }) {
     formData.append("file", file)
 
     try {
-      // Direct axios post for multipart/form-data
-      await apiClient.post("/api/documents", formData)
+      await apiRequest("/api/documents/", {
+        method: "POST",
+        body: formData,
+      })
       setMessage("Document uploaded! AI extraction started in the background.")
       setFile(null)
     } catch (err: any) {
