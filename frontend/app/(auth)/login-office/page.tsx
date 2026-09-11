@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
 import { Mail, Lock, Loader2, ArrowLeft, Building2, BarChart3, ShieldCheck, Zap, Copy } from "lucide-react";
 import Link from "next/link";
+import { FieldPulseLogo } from "@/components/shared/FieldPulseLogo";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -95,11 +96,8 @@ export default function LoginOfficePage() {
         <div className="card p-8 shadow-lg">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center border border-brand-100">
-                <Zap className="w-5 h-5 text-brand-600" />
-              </div>
-              <span className="text-lg font-bold text-text-primary">FieldPulse <span className="text-brand-500">AI</span></span>
+            <div className="flex items-center justify-center mb-6">
+              <FieldPulseLogo size="md" href="/" />
             </div>
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">Office Sign In</h1>
@@ -161,6 +159,7 @@ export default function LoginOfficePage() {
             <button
               type="submit"
               disabled={loading}
+              data-testid="office-sign-in"
               className="w-full btn-primary py-3.5 rounded-xl flex items-center justify-center gap-2 mt-2 text-base shadow-sm"
             >
               {loading ? (
@@ -177,7 +176,7 @@ export default function LoginOfficePage() {
           {invitedError && (
             <div className="mt-5 p-4 bg-warning-bg border border-warning/30 rounded-2xl text-center">
               <p className="text-warning text-sm mb-3 font-semibold">
-                You've been invited but haven't set your password yet.
+                You&apos;ve been invited but haven&apos;t set your password yet.
               </p>
               <Link
                 href="/set-password"

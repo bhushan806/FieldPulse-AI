@@ -18,8 +18,9 @@ export default function RosterPage() {
     async function load() {
       try {
         const me = await apiClient.get("/api/auth/me")
-        if (me.data.project_ids && me.data.project_ids.length > 0) {
-          const pid = me.data.project_ids[0]
+        const ids = me.data.projectIds || me.data.project_ids || []
+        if (ids.length > 0) {
+          const pid = ids[0]
           setProjectId(pid)
           const rosterRes = await apiClient.get(`/api/projects/${pid}/roster`)
           setEngineers(rosterRes.data.engineers || [])

@@ -3,9 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, CheckSquare, CalendarDays, Users, Menu, Bell, LogOut, Search, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, CalendarDays, Users, AlertCircle, Menu, Bell, LogOut, Search, ChevronDown } from 'lucide-react';
 import { RoleGuard } from '@/components/shared/RoleGuard';
 import { useAuthStore } from '@/store/authStore';
+import { getUserProjectIds } from '@/lib/utils';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { NotificationBell } from '@/components/shared/NotificationBell';
+import { FieldPulseLogo } from '@/components/shared/FieldPulseLogo';
 
 export default function PMLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,8 +18,9 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (user?.project_ids && user.project_ids.length > 0 && !selectedProjectId) {
-      setSelectedProject(user.project_ids[0]);
+    const ids = getUserProjectIds(user);
+    if (ids.length > 0 && !selectedProjectId) {
+      setSelectedProject(ids[0]);
     }
   }, [user, selectedProjectId, setSelectedProject]);
 
@@ -23,12 +28,13 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
     { name: 'Dashboard', href: '/pm/dashboard', icon: LayoutDashboard },
     { name: 'Review Queue', href: '/pm/review-queue', icon: CheckSquare },
     { name: 'Schedule', href: '/pm/schedule', icon: CalendarDays },
+    { name: 'Issues', href: '/pm/issues', icon: AlertCircle },
     { name: 'Team', href: '/pm/team', icon: Users },
   ];
 
   return (
     <RoleGuard allowedRoles={['project_manager']}>
-      <div className="flex h-screen bg-bg-app overflow-hidden">
+      <div className="flex h-screen bg-background overflow-hidden">
         
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
@@ -48,9 +54,9 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           <div className="p-6 border-b border-border">
-            <h1 className="text-xl font-bold text-text-primary mb-4">
-              FieldPulse <span className="font-light text-brand-500">AI</span>
-            </h1>
+            <div className="mb-4">
+              <FieldPulseLogo size="md" href="/pm/dashboard" />
+            </div>
             
             <div className="relative">
               <select 
@@ -58,7 +64,7 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
                 onChange={(e) => setSelectedProject(e.target.value)}
                 className="w-full appearance-none bg-bg-muted border border-border text-sm text-text-primary px-3 py-2 rounded-lg outline-none focus:border-brand-500 pr-8"
               >
-                {user?.project_ids?.map((id) => (
+                {getUserProjectIds(user).map((id) => (
                   <option key={id} value={id}>Project {id}</option>
                 ))}
               </select>
@@ -121,10 +127,8 @@ export default function PMLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-4">
-              <button className="relative p-2 text-text-muted hover:text-text-primary transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full border-2 border-surface"></span>
-              </button>
+              <ThemeToggle />
+              <NotificationBell />
               
               <div className="flex items-center gap-3 border-l border-border pl-4">
                 <div className="hidden sm:block text-right">

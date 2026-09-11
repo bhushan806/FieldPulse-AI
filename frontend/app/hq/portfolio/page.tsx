@@ -37,11 +37,12 @@ export default function PortfolioDashboard() {
     name: p.name,
     status: p.status,
     percent: p.percentComplete || 0,
-    pm: 'Assigned PM',
-    lastUpdate: 'Recently',
-    lat: p.location?.coordinates?.[1] || 27.47,
-    lng: p.location?.coordinates?.[0] || 94.92
+    pm: p.pmName ?? 'Unassigned',
+    lastUpdate: p.lastActivityAt ? new Date(p.lastActivityAt).toLocaleString() : 'No evidence submitted',
+    lat: p.location?.coordinates?.[1],
+    lng: p.location?.coordinates?.[0]
   })) || [];
+  const locatedProjects = projects.filter((project: any) => Number.isFinite(project.lat) && Number.isFinite(project.lng));
 
   return (
     <div className="space-y-6 animate-in">
@@ -67,10 +68,10 @@ export default function PortfolioDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard title="Total Projects" value={data?.total_projects || 0} icon={Globe} />
-        <MetricCard title="On Track" value={data?.on_track || 0} icon={CheckCircle2} />
-        <MetricCard title="At Risk" value={data?.at_risk || 0} icon={AlertTriangle} />
-        <MetricCard title="Delayed" value={data?.delayed || 0} icon={Clock} />
+        <MetricCard title="Total Projects" value={data?.totalProjects ?? 0} icon={Globe} />
+        <MetricCard title="On Track" value={data?.onTrack ?? 0} icon={CheckCircle2} />
+        <MetricCard title="At Risk" value={data?.atRisk ?? 0} icon={AlertTriangle} />
+        <MetricCard title="Delayed" value={data?.delayed ?? 0} icon={Clock} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -134,7 +135,7 @@ export default function PortfolioDashboard() {
         {/* Map View */}
         <div className="card flex flex-col p-2">
           <div className="h-full w-full rounded-xl overflow-hidden relative z-0 min-h-[300px] border border-border">
-            <PortfolioMap projects={projects} />
+            <PortfolioMap projects={locatedProjects} />
           </div>
         </div>
       </div>

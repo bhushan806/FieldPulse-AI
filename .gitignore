@@ -10,3 +10,5 @@ env/
 *.pyo
 *.pyd
 backend/venv_312/
+backend/.codex-test-venv/
+*.tsbuildinfo

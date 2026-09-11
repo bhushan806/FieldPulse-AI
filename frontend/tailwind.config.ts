@@ -46,6 +46,7 @@ const config: Config = {
           DEFAULT: '#E11D48', // Rose
           light: '#F43F5E',
           dark: '#BE123C',
+          bg: 'var(--danger-bg)',
         },
         neutral: {
           50: '#F8FAFC',
@@ -62,22 +63,32 @@ const config: Config = {
         },
         background: "var(--background)",
         surface: "var(--surface)",
-        border: "var(--border)",
+        border: {
+          DEFAULT: "var(--border)",
+          strong: "var(--border-strong)",
+        },
         text: {
           primary: "var(--text-primary)",
           secondary: "var(--text-secondary)",
           muted: "var(--text-muted)",
         },
-      },
-      spacing: {
-        4: "4px",
-        8: "8px",
-        12: "12px",
-        16: "16px",
-        24: "24px",
-        32: "32px",
-        48: "48px",
-        64: "64px",
+        bg: {
+          app: "var(--background)",
+          muted: "var(--bg-muted)",
+          surface: "var(--surface)",
+        },
+        success: {
+          DEFAULT: "#059669",
+          bg: "var(--success-bg)",
+        },
+        warning: {
+          DEFAULT: "#D97706",
+          bg: "var(--warning-bg)",
+        },
+        info: {
+          DEFAULT: "#0284C7",
+          bg: "var(--info-bg)",
+        },
       },
       boxShadow: {
         sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
@@ -95,6 +106,7 @@ const config: Config = {
         xl: "0.75rem",
         "2xl": "1rem",
         "3xl": "1.5rem",
+        btn: "0.5rem",
       },
       animation: {
         "fade-in": "fadeIn 0.3s ease-in-out",

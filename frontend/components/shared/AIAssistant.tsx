@@ -1,164 +1,101 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { MessageSquare, X, Send, Sparkles, Paperclip, Loader2 } from 'lucide-react';
-import { apiClient } from '@/lib/apiClient';
+import React, { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { useAIStore } from '@/store/aiStore';
 import { useAuthStore } from '@/store/authStore';
+import { getUserProjectIds } from '@/lib/utils';
+import { FieldPulseIcon } from './FieldPulseIcon';
+import { AICommandPalette } from '../ai/AICommandPalette';
+import { AIWorkspace } from '../ai/AIWorkspace';
 
 export function AIAssistant() {
-  const { user } = useAuthStore();
-  const projectId = user?.project_ids?.[0] || '';
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string }[]>([
-    { role: 'ai', content: 'Hi! I am the FieldPulse AI Assistant. How can I help you today? You can also upload images, audio, or video for analysis.' }
-  ]);
-  const [input, setInput] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const { user, accessToken, authStatus } = useAuthStore();
+  const { mode, openPanel, togglePanel, openPalette, close, setContext } = useAIStore();
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const isAuthenticated = authStatus === 'AUTHENTICATED' && !!accessToken;
+  const isEngineer = pathname?.startsWith('/engineer');
 
-    // Add user message
-    const userMsg = input;
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setInput('');
+  // Sync current page entity into AI context
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-    try {
-      const response = await apiClient.post('/api/ai/chat', {
-        message: userMsg,
-        project_id: projectId
+    // Detect project from route e.g. /hq/projects/[id]
+    const match = pathname?.match(/\/projects\/([a-zA-Z0-9]+)/);
+    const projectIdFromRoute = match ? match[1] : null;
+    const defaultProjectId = getUserProjectIds(user)[0] || null;
+
+    const activePid = projectIdFromRoute || defaultProjectId;
+    if (activePid) {
+      setContext({
+        entityType: 'project',
+        entityId: activePid,
+        entityName: projectIdFromRoute ? `Project ${projectIdFromRoute.slice(0, 8)}...` : undefined,
       });
-      
-      setMessages(prev => [
-        ...prev,
-        { role: 'ai', content: response.data.reply }
-      ]);
-    } catch (error) {
-      setMessages(prev => [
-        ...prev,
-        { role: 'ai', content: "Sorry, I couldn't connect to the AI engine right now." }
-      ]);
+    } else {
+      setContext({
+        entityType: 'portfolio',
+        entityName: 'All Portfolio Projects',
+      });
     }
-  };
+  }, [pathname, isAuthenticated, user, setContext]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setMessages(prev => [...prev, { role: 'user', content: `Uploaded file: ${file.name}` }]);
-    setIsUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('project_id', projectId);
-
-      // Using raw axios/fetch or configuring apiClient to handle FormData
-      // Our apiClient handles FormData natively by omitting Content-Type
-      const response = await apiClient.post('/api/ai/analyze-media', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+  // Global ⌘K / Ctrl+K and ESC listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (mode === 'palette') {
+          close();
+        } else {
+          openPalette();
         }
-      });
-      
-      setMessages(prev => [
-        ...prev,
-        { role: 'ai', content: response.data.analysis }
-      ]);
-    } catch (error) {
-      setMessages(prev => [
-        ...prev,
-        { role: 'ai', content: "Failed to analyze the media file. Please try again." }
-      ]);
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      } else if (e.key === 'Escape') {
+        if (mode !== 'closed') {
+          close();
+        }
       }
-    }
-  };
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, openPalette, close]);
+
+  if (!isAuthenticated) return null;
+
+  const buttonPosition = isEngineer
+    ? 'bottom-24 right-4'
+    : 'bottom-6 right-6';
+
+  const isWorkspaceOpen = mode === 'full' || mode === 'panel';
 
   return (
     <>
-      {/* Floating Button */}
+      {/* ── Floating Pulse Line Trigger Button ──────────────────── */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 p-4 bg-brand-600 text-white rounded-full shadow-lg hover:bg-brand-700 transition-all z-50 flex items-center justify-center ${isOpen ? 'scale-0' : 'scale-100 hover:scale-110'}`}
+        type="button"
+        onClick={togglePanel}
+        aria-label="Open FieldPulse AI Assistant (⌘K)"
+        title="FieldPulse AI Intelligence (⌘K)"
+        className={`fixed ${buttonPosition} z-40 p-3 bg-slate-950 text-white rounded-2xl shadow-xl border border-slate-800 hover:border-cyan-500/50 transition-all duration-300 flex items-center gap-2 group hover:shadow-cyan-500/15 ${
+          isWorkspaceOpen ? 'scale-0 pointer-events-none' : 'scale-100 hover:scale-105'
+        }`}
       >
-        <Sparkles className="w-6 h-6" />
+        <FieldPulseIcon size={22} variant="color" />
+        <span className="text-xs font-bold tracking-tight pr-1 hidden sm:inline text-slate-200 group-hover:text-white">
+          Pulse AI
+        </span>
+        <span className="hidden sm:inline text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700">
+          ⌘K
+        </span>
       </button>
 
-      {/* Chat Window */}
-      {isOpen && (
-        <div className="fixed bottom-6 right-6 w-80 md:w-96 bg-surface border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
-          {/* Header */}
-          <div className="bg-brand-600 text-white p-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              <h3 className="font-bold">FieldPulse AI</h3>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+      {/* ── Command Palette (⌘K) ──────────────────────────────── */}
+      <AICommandPalette />
 
-          {/* Messages */}
-          <div className="flex-1 p-4 overflow-y-auto max-h-96 space-y-4 bg-bg-app">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.role === 'user' ? 'bg-brand-600 text-white rounded-br-sm' : 'bg-surface border border-border text-text-primary rounded-bl-sm whitespace-pre-wrap'}`}>
-                  {msg.content}
-                </div>
-              </div>
-            ))}
-            {isUploading && (
-              <div className="flex justify-start">
-                <div className="max-w-[85%] rounded-2xl p-3 text-sm bg-surface border border-border text-text-primary rounded-bl-sm flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
-                  Analyzing media...
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Input Area */}
-          <form onSubmit={handleSend} className="p-3 border-t border-border bg-surface flex items-center gap-2">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileUpload} 
-              className="hidden" 
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="p-2 text-text-muted hover:text-brand-600 transition-colors disabled:opacity-50"
-              title="Upload media for analysis"
-            >
-              <Paperclip className="w-5 h-5" />
-            </button>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask the AI Assistant..."
-              disabled={isUploading}
-              className="flex-1 bg-bg-muted border border-border rounded-xl px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isUploading}
-              className="p-2 bg-brand-600 text-white rounded-xl disabled:opacity-50 hover:bg-brand-700 transition-colors"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-        </div>
-      )}
+      {/* ── Full / Side Panel Workspace ───────────────────────── */}
+      <AIWorkspace />
     </>
   );
 }

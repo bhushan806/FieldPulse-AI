@@ -13,7 +13,7 @@ export default function HqReportsPage() {
         <h2 className="text-lg font-semibold text-slate-100 mb-2">Portfolio Reports</h2>
         <p className="text-slate-400 text-sm mb-6">
           Global and cross-project reporting is currently under development. 
-          To download a report for a specific project, please navigate to that project's dashboard.
+          To download a report for a specific project, please navigate to that project&apos;s dashboard.
         </p>
       </div>
     </div>

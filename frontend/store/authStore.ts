@@ -72,9 +72,16 @@ export const useAuthStore = create<AuthState>()(
       },
 
       updateUser: (user) => {
-        set({ user, role: user.role });
+        const projectIds = (user as CurrentUser & { projectIds?: string[] }).project_ids
+          ?? (user as CurrentUser & { projectIds?: string[] }).projectIds
+          ?? [];
+        const normalized: CurrentUser = {
+          ...user,
+          project_ids: projectIds,
+        };
+        set({ user: normalized, role: normalized.role });
         if (typeof document !== 'undefined') {
-          document.cookie = `role=${user.role}; path=/; max-age=3600; SameSite=Lax`;
+          document.cookie = `role=${normalized.role}; path=/; max-age=3600; SameSite=Lax`;
         }
       },
 

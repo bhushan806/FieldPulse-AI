@@ -49,7 +49,7 @@ async def process_document_background(doc_id: str, raw_bytes: bytes, filename: s
         # 2. Process with LLM to find activities
         activities = await _extract_activities_from_text(extracted_text)
         
-        # 3. Save extracted data
+        # 3. Save extracted data (held for PM / HQ review before live insertion)
         await docs_col.update_one(
             {"_id": ObjectId(doc_id)}, 
             {
@@ -61,28 +61,22 @@ async def process_document_background(doc_id: str, raw_bytes: bytes, filename: s
             }
         )
         
-        # 4. (Optional) Auto-create schedule activities from the extraction
-        # We assume the document belongs to a project, let's get project_id
+        # 4. Broadcast document_processed event to project room via WebSocket
         doc = await docs_col.find_one({"_id": ObjectId(doc_id)})
-        if doc and activities:
-            project_id = doc["project_id"]
-            new_activity_docs = []
-            for act in activities:
-                new_activity_docs.append({
-                    "_id": ObjectId(),
-                    "project_id": project_id,
-                    "activity_code": act.get("activity_code", "GEN-" + str(ObjectId())[:4]),
-                    "activity_name": act.get("activity_name", "Unknown Activity"),
-                    "location": None,
-                    "planned_start": None, # In a full version, we'd parse dates
-                    "planned_end": None,
-                    "percent_complete": 0.0,
-                    "status": "planned",
-                    "keywords": act.get("keywords", [])
-                })
-            
-            if new_activity_docs:
-                await activities_col.insert_many(new_activity_docs)
+        if doc:
+            project_id = doc.get("project_id")
+            if project_id:
+                from app.websocket.manager import ws_manager
+                await ws_manager.broadcast_to_project(
+                    project_id=project_id,
+                    event="document_processed",
+                    data={
+                        "document_id": doc_id,
+                        "filename": filename,
+                        "activities_count": len(activities),
+                        "status": "analyzed"
+                    }
+                )
                 
     except Exception as e:
         print(f"[DocumentProcessor] Error processing document {doc_id}: {e}")
@@ -98,18 +92,87 @@ async def process_document_background(doc_id: str, raw_bytes: bytes, filename: s
         )
 
 
+def _heuristic_extract_activities(text: str) -> List[Dict]:
+    """
+    Scans document text using pattern matching to extract actual activities,
+    WBS codes, task titles, and keywords from the uploaded document.
+    """
+    import re
+    activities = []
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    
+    keywords_vocab = [
+        "excavation", "clearing", "foundation", "footing", "concrete", "pour", "curing",
+        "reinforcement", "rebar", "steel", "framing", "plumbing", "electrical", "piping",
+        "conduit", "trenching", "backfill", "masonry", "roofing", "cladding", "welding",
+        "inspection", "testing", "drainage", "grading", "paving", "painting", "finishing",
+        "commissioning", "installation", "scaffolding", "demolition", "site setup"
+    ]
+    
+    seen_names = set()
+    idx = 1
+    
+    # Pattern: Numbered or coded lines e.g. "1. Site clearing", "1.2 Foundation excavation", "ACT-01 Pipeline welding"
+    line_pattern = re.compile(r"^(?:(?:\d+[\.\)]|\b[A-Z]{2,5}[-_]\d{1,4}\b|[A-Z]\d+[\.\)])\s*)+([A-Za-z0-9\s,\-\/]{4,80})", re.IGNORECASE)
+    
+    for line in lines:
+        match = line_pattern.match(line)
+        candidate_name = ""
+        code = None
+        if match:
+            candidate_name = match.group(1).strip()
+            code_match = re.match(r"^([A-Z]{2,5}[-_]\d{1,4}|\d+(?:\.\d+)*)", line)
+            if code_match:
+                code = code_match.group(1).upper()
+        else:
+            line_lower = line.lower()
+            if any(kw in line_lower for kw in keywords_vocab) and len(line) < 90 and not line.endswith(":"):
+                candidate_name = line.strip()
+
+        if candidate_name and len(candidate_name) >= 5 and candidate_name.lower() not in seen_names:
+            seen_names.add(candidate_name.lower())
+            if not code:
+                code = f"ACT-{idx:02d}"
+            
+            kws = [kw for kw in keywords_vocab if kw in candidate_name.lower() or kw in line.lower()]
+            if not kws:
+                kws = [word.lower() for word in candidate_name.split() if len(word) > 4][:3]
+                
+            activities.append({
+                "activity_code": code,
+                "activity_name": candidate_name,
+                "keywords": kws,
+                "source": "heuristic_extractor"
+            })
+            idx += 1
+            if len(activities) >= 30:
+                break
+                
+    if not activities:
+        for line in lines[:10]:
+            if 5 <= len(line) <= 80:
+                activities.append({
+                    "activity_code": f"GEN-{idx:02d}",
+                    "activity_name": line,
+                    "keywords": ["general", "construction"],
+                    "source": "heuristic_fallback"
+                })
+                idx += 1
+                if len(activities) >= 5:
+                    break
+
+    return activities
+
+
 async def _extract_activities_from_text(text: str) -> List[Dict]:
     """
-    Calls HuggingFace Inference API to extract schedule activities from text.
+    Extracts schedule activities from text using HuggingFace Inference API if available,
+    or falls back to honest rule-based heuristic extraction.
     """
     api_key = settings.HF_INFERENCE_API_KEY
     if not api_key or api_key == "mock":
-        print("[DocumentProcessor] Using mock extraction")
-        return [
-            {"activity_code": "SITE-01", "activity_name": "Site Setup & Clearance", "keywords": ["site", "clearance"]},
-            {"activity_code": "FND-01", "activity_name": "Foundation Excavation", "keywords": ["excavation", "digging"]},
-            {"activity_code": "FND-02", "activity_name": "Concrete Pour - Foundation", "keywords": ["concrete", "foundation"]}
-        ]
+        print("[DocumentProcessor] Using heuristic document extraction")
+        return _heuristic_extract_activities(text)
         
     client = AsyncInferenceClient(token=api_key)
     
@@ -129,8 +192,6 @@ async def _extract_activities_from_text(text: str) -> List[Dict]:
     """
     
     try:
-        # Using a reliable instruction model (Mixtral or similar, depends on what HF endpoint is active, we use default text-generation)
-        # Note: In production you might want to specify a precise model string like "mistralai/Mixtral-8x7B-Instruct-v0.1"
         response = await client.text_generation(
             prompt,
             model="mistralai/Mixtral-8x7B-Instruct-v0.1",
@@ -140,7 +201,6 @@ async def _extract_activities_from_text(text: str) -> List[Dict]:
         )
         
         content = response.strip()
-        # Clean up possible markdown code blocks
         if content.startswith("```json"):
             content = content[7:]
         if content.startswith("```"):
@@ -149,12 +209,13 @@ async def _extract_activities_from_text(text: str) -> List[Dict]:
             content = content[:-3]
             
         activities = json.loads(content.strip())
-        if isinstance(activities, list):
+        if isinstance(activities, list) and activities:
+            for act in activities:
+                act["source"] = "llm_inference"
             return activities
-        return []
+        return _heuristic_extract_activities(text)
         
     except Exception as e:
-        print(f"[DocumentProcessor] HF API Error: {e}")
-        # Fallback to simple regex/split based mock if AI fails to parse JSON
-        return [{"activity_code": "ERR-01", "activity_name": "Failed to parse automatically - Manual review required", "keywords": []}]
+        print(f"[DocumentProcessor] HF API Error: {e}. Falling back to heuristic extractor.")
+        return _heuristic_extract_activities(text)
 

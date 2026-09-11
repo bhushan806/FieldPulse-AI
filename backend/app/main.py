@@ -14,6 +14,10 @@ import os
 from app.db.mongo import connect_db, disconnect_db
 from app.websocket.manager import ws_manager
 from app.core.security import decode_token
+from app.core.deps import user_can_access_project
+from app.db.mongo import get_users_collection
+from app.models.user import UserInDB
+from bson import ObjectId
 
 # --- Routers ---
 from app.api.auth import router as auth_router
@@ -27,6 +31,8 @@ from app.api.reports import router as reports_router
 from app.api.documents import router as documents_router
 from app.api.issues import router as issues_router
 from app.api.ai import router as ai_router
+from app.api.audit_logs import router as audit_logs_router
+from app.api.activities import router as activities_router
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +60,10 @@ app = FastAPI(
 # CORS — allow the Next.js frontend (and any deployed domain)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],   # Explicit origin required when allow_credentials=True
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,6 +88,8 @@ app.include_router(reports_router)
 app.include_router(documents_router)
 app.include_router(issues_router)
 app.include_router(ai_router)
+app.include_router(audit_logs_router)
+app.include_router(activities_router)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +112,16 @@ async def websocket_endpoint(
       - new_alert         : { notification_id, project_id, type }
     """
     # Validate JWT before accepting
-    if not token or decode_token(token) is None:
+    payload = decode_token(token) if token else None
+    if not payload or payload.get("type") != "access":
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    try:
+        user_doc = await get_users_collection().find_one({"_id": ObjectId(payload["sub"])})
+        if not user_doc or not user_can_access_project(UserInDB(**user_doc), project_id):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    except Exception:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
         

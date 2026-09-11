@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { exportReport } from "@/lib/api/dashboard";
 import { useAuthStore } from "@/store/authStore";
+import { getUserProjectIds } from "@/lib/utils";
 import { useUiStore } from "@/store/uiStore";
 import { FileText, Download, Loader2 } from "lucide-react";
 
@@ -16,7 +17,7 @@ export default function PmReportsPage() {
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
-    const projectId = user?.project_ids?.[0];
+    const projectId = getUserProjectIds(user)[0];
     if (!projectId) { addNotification({ type: "error", message: "No project assigned." }); return; }
     setLoading(true);
     try {

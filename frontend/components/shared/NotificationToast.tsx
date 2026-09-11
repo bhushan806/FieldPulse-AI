@@ -2,6 +2,7 @@
 
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
+import { getUserProjectIds } from '@/lib/utils';
 import { socket } from '@/lib/socket';
 import { useQueryClient } from '@tanstack/react-query';
 import { X, CheckCircle, AlertTriangle, Info } from 'lucide-react';
@@ -11,7 +12,7 @@ export function NotificationToast() {
   const { toasts, dismissNotification, addNotification } = useUIStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const projectId = user?.project_ids?.[0];
+  const projectId = getUserProjectIds(user)[0];
 
   useEffect(() => {
     if (!projectId) return;

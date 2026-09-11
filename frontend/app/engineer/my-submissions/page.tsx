@@ -27,10 +27,12 @@ export default function MySubmissions() {
     fetchSubmissions();
   }, []);
 
-  const filteredSubmissions = submissions.filter(sub => {
+  const filteredSubmissions = submissions.filter((sub) => {
+    const status = String(sub.status);
     if (filter === 'all') return true;
-    if (filter === 'pending') return sub.status === 'pending_review' || sub.status === 'processing';
-    return sub.status === filter;
+    if (filter === 'pending') return status === 'pending_review' || status === 'processing';
+    if (filter === 'approved') return status === 'approved' || status === 'auto_approved';
+    return status === 'rejected';
   });
 
   return (
@@ -38,8 +40,8 @@ export default function MySubmissions() {
       {/* Header section */}
       <div className="flex items-center justify-between pt-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Submissions</h1>
-          <p className="text-slate-400 text-sm">Your recent captures and status.</p>
+          <h1 className="text-2xl font-bold text-text-primary">Submissions</h1>
+          <p className="text-text-secondary text-sm">Your recent captures and status.</p>
         </div>
       </div>
 
@@ -50,10 +52,10 @@ export default function MySubmissions() {
           <input 
             type="text" 
             placeholder="Search captures..." 
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-sm text-white focus:border-orange-500 outline-none"
+            className="w-full bg-surface border border-border rounded-xl pl-9 pr-4 py-3 text-sm text-text-primary focus:border-brand-500 outline-none"
           />
         </div>
-        <button className="p-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-300 hover:text-white transition-colors">
+        <button className="p-3 bg-surface border border-border rounded-xl text-text-secondary hover:text-text-primary transition-colors">
           <Filter className="w-5 h-5" />
         </button>
       </div>
@@ -66,8 +68,8 @@ export default function MySubmissions() {
             onClick={() => setFilter(f as any)}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap capitalize transition-colors ${
               filter === f 
-                ? 'bg-orange-500 text-white' 
-                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                ? 'bg-brand-600 text-white' 
+                : 'bg-bg-muted text-text-secondary hover:bg-neutral-200 dark:hover:bg-neutral-700'
             }`}
           >
             {f}
@@ -85,26 +87,30 @@ export default function MySubmissions() {
             <p>No submissions found.</p>
           </div>
         ) : (
-          filteredSubmissions.map((sub) => (
-            <div key={sub.id} className="glass-card flex gap-4 p-3 hover:border-slate-600 transition-colors cursor-pointer group">
+          filteredSubmissions.map((sub) => {
+            const status = String(sub.status);
+            const isApproved = status === 'approved' || status === 'auto_approved';
+            const isRejected = status === 'rejected';
+            return (
+            <div key={sub.id} className="card flex gap-4 p-3 hover:border-border-strong transition-colors cursor-pointer group">
               {/* Thumbnail */}
-              <div className="w-20 h-20 rounded-lg overflow-hidden bg-slate-800 shrink-0 relative">
+              <div className="w-20 h-20 rounded-lg overflow-hidden bg-bg-muted shrink-0 relative">
                 {sub.mediaUrl ? (
                   <img src={sub.mediaUrl} alt="Capture" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Camera className="w-6 h-6 text-slate-600" />
+                    <Camera className="w-6 h-6 text-text-muted" />
                   </div>
                 )}
                 
                 {/* Status Indicator overlay */}
-                <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-900/80 backdrop-blur-sm flex items-center justify-center">
-                  {sub.status === 'approved' || sub.status === 'auto_approved' ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : sub.status === 'rejected' ? (
-                    <XCircle className="w-3.5 h-3.5 text-red-400" />
+                <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-surface/80 backdrop-blur-sm flex items-center justify-center">
+                  {isApproved ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                  ) : isRejected ? (
+                    <XCircle className="w-3.5 h-3.5 text-danger" />
                   ) : (
-                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <Clock className="w-3.5 h-3.5 text-warning" />
                   )}
                 </div>
               </div>
@@ -112,34 +118,35 @@ export default function MySubmissions() {
               {/* Info */}
               <div className="flex-1 min-w-0 py-1">
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-semibold text-white text-sm truncate">
+                  <h3 className="font-semibold text-text-primary text-sm truncate">
                     {sub.extractedEntities?.activity || 'Unknown Activity'}
                   </h3>
-                  <span className="text-[10px] text-slate-500 whitespace-nowrap ml-2">
+                  <span className="text-[10px] text-text-muted whitespace-nowrap ml-2">
                     {new Date(sub.createdAt).toLocaleDateString()}
                   </span>
                 </div>
                 
-                <p className="text-xs text-slate-400 mb-2 truncate">
+                <p className="text-xs text-text-secondary mb-2 truncate">
                   AI Match: {sub.cvClassification?.label || 'Processing...'}
                 </p>
                 
                 <div className="flex items-center justify-between mt-auto">
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                    sub.status === 'approved' || sub.status === 'auto_approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                    sub.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
-                    'bg-amber-500/10 text-amber-400'
+                    isApproved ? 'bg-success-bg text-success' :
+                    isRejected ? 'bg-danger-bg text-danger' :
+                    'bg-warning-bg text-warning'
                   }`}>
-                    {sub.status.replace('_', ' ')}
+                    {status.replace('_', ' ')}
                   </span>
                   
-                  <span className="text-[10px] font-mono text-slate-500">
+                  <span className="text-[10px] font-mono text-text-muted">
                     ID: {sub.id.slice(0,6)}
                   </span>
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

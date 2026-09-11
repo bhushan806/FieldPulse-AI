@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useRouter } from 'next/navigation';
+import { getMapTileLayer } from '@/lib/mapTiles';
 
 const customIcon = (color: string) => new L.Icon({
   iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
@@ -24,10 +25,13 @@ export default function PortfolioMap({ projects }: { projects: any[] }) {
   }, []);
 
   if (!mounted) return null;
+  if (projects.length === 0) {
+    return <div className="w-full h-full flex items-center justify-center text-sm text-text-muted">No project locations available.</div>;
+  }
 
   // Calculate center
-  const avgLat = projects.reduce((sum, p) => sum + p.lat, 0) / projects.length || 27.47;
-  const avgLng = projects.reduce((sum, p) => sum + p.lng, 0) / projects.length || 94.92;
+  const avgLat = projects.reduce((sum, p) => sum + p.lat, 0) / projects.length;
+  const avgLng = projects.reduce((sum, p) => sum + p.lng, 0) / projects.length;
 
   return (
     <MapContainer 
@@ -37,8 +41,8 @@ export default function PortfolioMap({ projects }: { projects: any[] }) {
       zoomControl={false}
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap'
-        url={process.env.NEXT_PUBLIC_MAP_TILE_URL || "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"}
+        attribution={getMapTileLayer().attribution}
+        url={getMapTileLayer().url}
       />
       
       {projects.map((proj) => {

@@ -24,7 +24,8 @@ from app.models.capture import CaptureStatus, CvClassification, ExtractedEntitie
 # ---------------------------------------------------------------------------
 
 AUTO_APPROVE_THRESHOLD = 0.80   # confidence >= 80% → auto_approved
-REVIEW_THRESHOLD = 0.40         # confidence < 40%  → pending_review (uncertain)
+REVIEW_THRESHOLD = 0.40         # confidence >= 40% → PM review
+RECAPTURE_THRESHOLD = 0.20      # weak/no evidence → request recapture
 FUZZY_MATCH_WEIGHT = 0.40
 VISION_WEIGHT = 0.35
 NLP_WEIGHT = 0.25
@@ -162,6 +163,6 @@ async def match_capture_to_activity(
     elif best_score >= REVIEW_THRESHOLD:
         capture_status = CaptureStatus.pending_review
     else:
-        capture_status = CaptureStatus.pending_review  # also send low-confidence for review
+        capture_status = CaptureStatus.rejected
 
     return best_id, round(best_score, 4), capture_status

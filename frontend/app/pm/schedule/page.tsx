@@ -1,6 +1,7 @@
 'use client';
 
-import { CalendarDays, Filter, Search, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Filter, Search, AlertTriangle, Clock } from 'lucide-react';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -106,7 +107,7 @@ export default function PMSchedule() {
                   <h3 className="font-bold text-text-primary text-sm mb-3 group-hover:text-brand-600 transition-colors">
                     {act.activityName}
                   </h3>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 mb-3">
                     <div className="flex-1 h-1.5 bg-bg-muted rounded-full overflow-hidden border border-border">
                       <div 
                         className={`h-full rounded-full ${act.status === 'delayed' ? 'bg-danger' : 'bg-brand-500'}`}
@@ -114,6 +115,16 @@ export default function PMSchedule() {
                       />
                     </div>
                     <span className="text-xs font-bold text-text-secondary w-8">{act.percentComplete}%</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                    <span className="text-[11px] text-text-muted">History & Root Cause</span>
+                    <Link
+                      href={`/pm/time-machine/${act.id}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-brand-500/10 text-brand-600 hover:bg-brand-500 hover:text-white border border-brand-500/20 transition-all shadow-2xs"
+                    >
+                      <Clock className="w-3 h-3" />
+                      <span>Time Machine</span>
+                    </Link>
                   </div>
                 </div>
               ))

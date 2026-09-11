@@ -42,7 +42,7 @@ export const keysToSnake = function (o: any): any {
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -50,7 +50,14 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
-  if (config.data && !(config.data instanceof FormData)) {
+
+  if (config.data instanceof FormData) {
+    // Let the browser set multipart boundary; JSON default would break uploads
+    if (config.headers) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+    }
+  } else if (config.data) {
     config.data = keysToSnake(config.data);
   }
   if (config.params) {
@@ -69,17 +76,19 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const refreshToken = useAuthStore.getState().refreshToken;
         if (!refreshToken) throw new Error('No refresh token');
         const res = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/refresh`,
-          { refreshToken }
+          { refresh_token: refreshToken }
         );
-        const { accessToken } = res.data;
+        const accessToken = res.data?.access_token ?? res.data?.accessToken;
+        if (!accessToken) throw new Error('Refresh response missing access token');
         useAuthStore.getState().setAuth({ accessToken, refreshToken });
+        originalRequest.headers = originalRequest.headers ?? {};
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch {

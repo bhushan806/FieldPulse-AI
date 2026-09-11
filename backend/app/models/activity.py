@@ -28,6 +28,14 @@ class ScheduleActivityInDB(BaseModel):
     percent_complete: float = Field(default=0.0, ge=0, le=100)
     status: ActivityStatus = ActivityStatus.not_started
     keywords: List[str] = []
+    planned_quantity: Optional[float] = None
+    quantity_unit: Optional[str] = None
+    dependencies: List[str] = []
+    milestone: Optional[str] = None
+    critical_path: bool = False
+    baseline_start: Optional[datetime] = None
+    baseline_end: Optional[datetime] = None
+    baseline_duration_days: Optional[int] = None
 
     class Config:
         populate_by_name = True
@@ -46,3 +54,11 @@ class ScheduleActivityPublic(BaseModel):
     percent_complete: float
     status: ActivityStatus
     keywords: List[str]
+    planned_quantity: Optional[float] = None
+    quantity_unit: Optional[str] = None
+    dependencies: List[str] = []
+    milestone: Optional[str] = None
+    critical_path: bool = False
+    baseline_start: Optional[datetime] = None
+    baseline_end: Optional[datetime] = None
+    baseline_duration_days: Optional[int] = None

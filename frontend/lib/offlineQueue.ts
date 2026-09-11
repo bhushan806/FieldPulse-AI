@@ -81,21 +81,20 @@ export const offlineService = {
       try {
         const formData = new FormData();
         formData.append('file', capture.mediaBlob, `capture_${Date.now()}.jpg`);
-        formData.append('mediaType', capture.mediaType);
-        formData.append('projectId', capture.projectId);
+        // These names deliberately mirror the FastAPI multipart contract.
+        formData.append('media_type', capture.mediaType);
+        formData.append('project_id', capture.projectId);
         
         if (capture.gps) {
-          formData.append('lat', capture.gps.lat.toString());
-          formData.append('lng', capture.gps.lng.toString());
+          formData.append('gps_lat', capture.gps.lat.toString());
+          formData.append('gps_lng', capture.gps.lng.toString());
         }
         
         if (capture.notes) {
-          formData.append('notes', capture.notes);
+          formData.append('text_note', capture.notes);
         }
 
-        await apiClient.post(API_ENDPOINTS.captures.submit, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        await apiClient.post(API_ENDPOINTS.captures.submit, formData);
 
         await this.removeFromQueue(capture.id);
         

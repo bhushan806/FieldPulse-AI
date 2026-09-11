@@ -11,6 +11,12 @@
     --text-primary: #0F172A;
     --text-secondary: #475569;
     --text-muted: #94A3B8;
+    --bg-muted: #F1F5F9;
+    --border-strong: #CBD5E1;
+    --danger-bg: #FFF1F2;
+    --success-bg: #ECFDF5;
+    --warning-bg: #FFFBEB;
+    --info-bg: #F0F9FF;
 
     --radius: 0.5rem;
   }
@@ -23,6 +29,12 @@
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
     --text-muted: #64748B;
+    --bg-muted: #1E293B;
+    --border-strong: #475569;
+    --danger-bg: rgba(225, 29, 72, 0.15);
+    --success-bg: rgba(5, 150, 105, 0.15);
+    --warning-bg: rgba(217, 119, 6, 0.15);
+    --info-bg: rgba(2, 132, 199, 0.15);
   }
 }
 

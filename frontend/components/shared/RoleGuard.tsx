@@ -21,10 +21,15 @@ export function RoleGuard({
     if (authStatus === 'AUTH_INITIALIZING') return;
 
     if (authStatus === 'UNAUTHENTICATED' || authStatus === 'AUTH_ERROR') {
+      const loginPath = allowedRoles.includes('site_engineer')
+        ? '/login-engineer'
+        : allowedRoles.includes('platform_admin')
+          ? '/login-admin'
+          : '/login-office';
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[AUTH] RoleGuard: ${authStatus} → redirecting to /login-office`);
+        console.log(`[AUTH] RoleGuard: ${authStatus} → redirecting to ${loginPath}`);
       }
-      router.replace('/login-office');
+      router.replace(loginPath);
       return;
     }
 

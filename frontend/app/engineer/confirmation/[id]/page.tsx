@@ -52,28 +52,30 @@ export default function ConfirmationPage({ params }: { params: { id: string } })
 
   const isProcessing = captureData.status === 'processing';
   const isFailed = captureData.status === 'processing_failed';
+  const needsRecapture = captureData.status === 'rejected';
 
   return (
     <div className="flex flex-col min-h-screen items-center justify-center p-6 text-center animate-in zoom-in-95 duration-500">
       <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 ${
-        isFailed ? 'bg-red-500/10 text-red-500' :
+        (isFailed || needsRecapture) ? 'bg-red-500/10 text-red-500' :
         isProcessing ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'
       }`}>
-        {isFailed ? <AlertTriangle className="w-12 h-12" /> :
+        {(isFailed || needsRecapture) ? <AlertTriangle className="w-12 h-12" /> :
          isProcessing ? <LoadingSpinner size={48} /> : <CheckCircle2 className="w-12 h-12" />}
       </div>
       
       <h1 className="text-3xl font-bold text-white mb-2">
-        {isFailed ? 'Processing Failed' : isProcessing ? 'Analyzing...' : 'Capture Analyzed'}
+        {isFailed ? 'Processing Failed' : needsRecapture ? 'Please Re Capture' : isProcessing ? 'Analyzing...' : 'Capture Analyzed'}
       </h1>
       <p className="text-slate-400 mb-8 max-w-sm">
-        {isFailed ? 'The AI engine encountered an error while analyzing your submission. Please try again or submit manually.' :
+        {isFailed ? 'The evidence was saved, but processing could not finish. Please submit another capture or contact your Project Manager.' :
+         needsRecapture ? 'The evidence did not contain enough reliable signals to update the schedule. Please capture a clearer photo, add a note, or scan the activity QR code.' :
          isProcessing ? 'Your progress update is being processed by FieldPulse AI.' :
          'Your progress update has been successfully analyzed.'}
       </p>
 
       {/* AI Processing Preview Card */}
-      {!isFailed && (
+      {!isFailed && !needsRecapture && (
         <div className="w-full max-w-sm glass-card p-6 mb-8 text-left space-y-4 relative overflow-hidden">
           {isProcessing && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-pulse" />}
           
@@ -89,11 +91,11 @@ export default function ConfirmationPage({ params }: { params: { id: string } })
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b border-slate-700/50 pb-2">
               <span className="text-slate-400 text-sm">Detected Activity</span>
-              <span className="text-white font-medium">{captureData.extracted_entities?.activity || 'N/A'}</span>
+              <span className="text-white font-medium">{captureData.extractedEntities?.activity || 'N/A'}</span>
             </div>
             <div className="flex justify-between items-center border-b border-slate-700/50 pb-2">
               <span className="text-slate-400 text-sm">Visual Match</span>
-              <span className="text-white font-medium">{captureData.cv_classification?.label || 'N/A'}</span>
+              <span className="text-white font-medium">{captureData.cvClassification?.label || 'N/A'}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-slate-400 text-sm">Status</span>

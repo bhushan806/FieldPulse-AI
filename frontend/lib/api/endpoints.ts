@@ -9,9 +9,14 @@ export const API_ENDPOINTS = {
   activities: {
     nearby: '/api/activities/nearby',
     details: (id: string) => `/api/activities/${id}`,
+    timeline: (id: string) => `/api/activities/${id}/timeline`,
+    rootCause: (id: string) => `/api/activities/${id}/timeline/root-cause`,
+    impact: (id: string) => `/api/activities/${id}/timeline/impact`,
+    ask: (id: string) => `/api/activities/${id}/timeline/ask`,
+    evidence: (activityId: string, evidenceId: string) => `/api/activities/${activityId}/evidence/${evidenceId}`,
   },
   captures: {
-    submit: '/api/captures',
+    submit: '/api/captures/',
     mine: '/api/captures/mine',
     details: (id: string) => `/api/captures/${id}`,
   },

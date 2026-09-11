@@ -16,7 +16,7 @@ export default function ProfilePage() {
   return (
     <div className="p-4 space-y-6 animate-in">
       <div className="flex items-center justify-between pt-4">
-        <h1 className="text-2xl font-bold text-white">Profile</h1>
+        <h1 className="text-2xl font-bold text-text-primary">Profile</h1>
       </div>
 
       {/* User Info Card */}
@@ -27,7 +27,7 @@ export default function ProfilePage() {
           <span className="text-4xl text-orange-400 font-bold">{user?.name?.charAt(0) || 'E'}</span>
         </div>
         
-        <h2 className="text-xl font-bold text-white">{user?.name || 'Site Engineer'}</h2>
+        <h2 className="text-xl font-bold text-text-primary">{user?.name || 'Site Engineer'}</h2>
         <p className="text-sm text-orange-400 font-medium mb-4 flex items-center gap-1">
           <HardHat className="w-4 h-4" />
           Field Operator
@@ -36,11 +36,11 @@ export default function ProfilePage() {
         <div className="w-full space-y-3 mt-4">
           <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
             <Phone className="w-5 h-5 text-slate-400" />
-            <span className="text-slate-300 text-sm">{user?.phone || '+91 98765 43210'}</span>
+            <span className="text-text-secondary text-sm">{user?.phone || 'No phone on file'}</span>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
             <Mail className="w-5 h-5 text-slate-400" />
-            <span className="text-slate-300 text-sm">{user?.email || 'engineer@oilindia.in'}</span>
+            <span className="text-text-secondary text-sm">{user?.email || 'No email on file'}</span>
           </div>
         </div>
       </div>
@@ -50,14 +50,14 @@ export default function ProfilePage() {
         <button className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors border-b border-slate-800">
           <div className="flex items-center gap-3">
             <Settings className="w-5 h-5 text-slate-400" />
-            <span className="text-slate-200 text-sm font-medium">App Settings</span>
+            <span className="text-text-primary text-sm font-medium">App Settings</span>
           </div>
           <ChevronRight className="w-5 h-5 text-slate-500" />
         </button>
         <button className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors border-b border-slate-800">
           <div className="flex items-center gap-3">
             <HelpCircle className="w-5 h-5 text-slate-400" />
-            <span className="text-slate-200 text-sm font-medium">Help & Support</span>
+            <span className="text-text-primary text-sm font-medium">Help & Support</span>
           </div>
           <ChevronRight className="w-5 h-5 text-slate-500" />
         </button>

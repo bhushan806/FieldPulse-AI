@@ -120,9 +120,9 @@ export default function ReviewQueue() {
                 <div className="flex items-center justify-between mt-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
                     <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center text-brand-700">
-                      {item.submittedBy.name.charAt(0)}
+                      {item.submittedBy?.name?.charAt(0) || '?'}
                     </div>
-                    {item.submittedBy.name}
+                    {item.submittedBy?.name || 'Unknown submitter'}
                   </div>
                   
                   {item.confidenceScore < 0.7 && (
@@ -167,10 +167,9 @@ export default function ReviewQueue() {
                 </div>
                 
                 <div className="bg-bg-muted rounded-xl p-4 border border-border">
-                  <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">Engineer's Notes</h4>
+                  <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">Engineer&apos;s Notes</h4>
                   <p className="text-sm text-text-primary italic font-medium leading-relaxed">
-                    "{selectedItem.transcribedText || 'No notes provided.'}"
-                  </p>
+                    &quot;{selectedItem.transcribedText || 'No notes provided.'}&quot;</p>
                 </div>
 
                 <div className="bg-bg-muted rounded-xl p-4 border border-border space-y-3">

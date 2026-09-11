@@ -1,10 +1,27 @@
 'use client';
 
 import { PageHeader } from '@/components/shared/PageHeader';
-import { ShieldAlert, AlertTriangle, Activity, Users, LayoutDashboard, Globe } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, Activity, LayoutDashboard, Globe } from 'lucide-react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { listAlerts, listReviewQueue } from '@/lib/api/dashboard';
 
 export default function AdminDashboardPage() {
+  const { data: alertsData, isLoading: isLoadingAlerts } = useQuery({
+    queryKey: ['adminAlerts'],
+    queryFn: () => listAlerts(),
+    refetchInterval: 15000,
+  });
+
+  const { data: reviewData, isLoading: isLoadingReview } = useQuery({
+    queryKey: ['adminReviewQueue'],
+    queryFn: () => listReviewQueue(),
+    refetchInterval: 15000,
+  });
+
+  const totalAlerts = alertsData?.total ?? alertsData?.items?.length ?? 0;
+  const pendingReviews = reviewData?.total ?? reviewData?.items?.length ?? 0;
+
   return (
     <div className="space-y-6 animate-in">
       <PageHeader
@@ -33,8 +50,10 @@ export default function AdminDashboardPage() {
             </div>
             <Link href="/hq/alerts" className="text-sm font-semibold text-brand-600 hover:text-brand-700">View All</Link>
           </div>
-          <h3 className="text-3xl font-bold text-text-primary mb-1 tabular">14</h3>
-          <p className="text-sm font-medium text-text-secondary">Active Critical Alerts</p>
+          <h3 className="text-3xl font-bold text-text-primary mb-1 tabular">
+            {isLoadingAlerts ? '...' : totalAlerts}
+          </h3>
+          <p className="text-sm font-medium text-text-secondary">Active Portfolio Alerts</p>
         </div>
 
         {/* KPI 3 */}
@@ -45,10 +64,13 @@ export default function AdminDashboardPage() {
             </div>
             <Link href="/pm/review-queue" className="text-sm font-semibold text-brand-600 hover:text-brand-700">Go to Queue</Link>
           </div>
-          <h3 className="text-3xl font-bold text-text-primary mb-1 tabular">45</h3>
+          <h3 className="text-3xl font-bold text-text-primary mb-1 tabular">
+            {isLoadingReview ? '...' : pendingReviews}
+          </h3>
           <p className="text-sm font-medium text-text-secondary">Pending Reviews</p>
         </div>
       </div>
+
 
       <h2 className="text-lg font-bold text-text-primary mt-8 mb-4">Role Emulation</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,13 +1,23 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Camera, ListTodo, User, Plus } from 'lucide-react';
 import { RoleGuard } from '@/components/shared/RoleGuard';
+import { useAuthStore } from '@/store/authStore';
+import { getUserProjectIds } from '@/lib/utils';
 
 export default function EngineerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user, selectedProjectId, setSelectedProject } = useAuthStore();
+
+  useEffect(() => {
+    const ids = getUserProjectIds(user);
+    if (ids.length > 0 && !selectedProjectId) {
+      setSelectedProject(ids[0]);
+    }
+  }, [user, selectedProjectId, setSelectedProject]);
 
   const navItems = [
     { name: 'Home', href: '/engineer/home', icon: Home },
@@ -18,26 +28,23 @@ export default function EngineerLayout({ children }: { children: React.ReactNode
 
   return (
     <RoleGuard allowedRoles={['site_engineer']}>
-      <div className="flex flex-col min-h-screen bg-transparent pb-20">
-        
-        {/* Main Content Area */}
-        <main className="flex-1 w-full max-w-lg mx-auto">
+      <div className="flex flex-col min-h-screen bg-background pb-24">
+        <main className="flex-1 w-full max-w-lg mx-auto min-w-0">
           {children}
         </main>
 
-        {/* Mobile Bottom Navigation */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 glass-card rounded-b-none border-b-0 px-6 py-2 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-w-lg mx-auto">
-          <ul className="flex items-center justify-between relative">
-            {navItems.map((item, idx) => {
+        <nav className="fixed bottom-0 left-0 right-0 z-30 bg-surface border-t border-border px-4 py-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+          <ul className="flex items-center justify-between relative max-w-lg mx-auto">
+            {navItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               const Icon = item.icon;
 
               if (item.isFab) {
                 return (
-                  <li key={item.name} className="relative -top-6">
-                    <Link href={item.href}>
-                      <div className={`flex items-center justify-center w-14 h-14 rounded-full shadow-xl transition-all duration-300 ${isActive ? 'bg-orange-500 scale-110 shadow-orange-500/50' : 'bg-slate-800 text-orange-400 border-2 border-orange-500/50 hover:bg-slate-700'}`}>
-                        {isActive ? <Camera className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6" />}
+                  <li key={item.name} className="relative -top-5">
+                    <Link href={item.href} aria-label="Capture progress">
+                      <div className={`flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-all duration-300 ${isActive ? 'bg-brand-600 scale-110 text-white' : 'bg-brand-600 text-white hover:bg-brand-700'}`}>
+                        {isActive ? <Camera className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
                       </div>
                     </Link>
                   </li>
@@ -46,11 +53,11 @@ export default function EngineerLayout({ children }: { children: React.ReactNode
 
               return (
                 <li key={item.name}>
-                  <Link 
+                  <Link
                     href={item.href}
-                    className={`flex flex-col items-center p-2 transition-colors duration-200 ${isActive ? 'text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}
+                    className={`flex flex-col items-center p-2 transition-colors duration-200 ${isActive ? 'text-brand-600' : 'text-text-muted hover:text-text-primary'}`}
                   >
-                    <Icon className={`w-6 h-6 mb-1 ${isActive ? 'fill-orange-400/20' : ''}`} strokeWidth={isActive ? 2.5 : 1.5} />
+                    <Icon className="w-6 h-6 mb-1" strokeWidth={isActive ? 2.5 : 1.5} />
                     <span className="text-[10px] font-medium">{item.name}</span>
                   </Link>
                 </li>

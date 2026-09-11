@@ -233,7 +233,7 @@ function SetPasswordForm() {
           {/* Info */}
           <div className="mt-6 p-4 bg-white/3 border border-white/8 rounded-2xl">
             <p className="text-xs text-slate-500 leading-relaxed">
-              After setting your password, you'll be automatically signed in and redirected to your
+              After setting your password, you&apos;ll be automatically signed in and redirected to your
               dashboard. You can use email + password to log in from now on.
             </p>
           </div>

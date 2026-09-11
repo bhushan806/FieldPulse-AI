@@ -133,8 +133,8 @@ export default function PMDashboard() {
                     itemStyle={{ color: '#0f172a', fontWeight: '500' }}
                   />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Area type="monotone" dataKey="planned_percent" name="Planned %" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorPlanned)" />
-                  <Area type="monotone" dataKey="actual_percent" name="Actual %" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
+                  <Area type="monotone" dataKey="plannedPercent" name="Planned %" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorPlanned)" />
+                  <Area type="monotone" dataKey="actualPercent" name="Actual %" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (

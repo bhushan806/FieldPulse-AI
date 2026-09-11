@@ -1,7 +1,8 @@
 import React from 'react';
-import { Menu, Search, Bell, Sun, Moon } from 'lucide-react';
+import { Menu, Search } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { useTheme } from 'next-themes';
+import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 
 interface TopNavProps {
   onMenuClick: () => void;
@@ -9,7 +10,6 @@ interface TopNavProps {
 
 export function TopNav({ onMenuClick }: TopNavProps) {
   const { user } = useAuthStore();
-  const { theme, setTheme } = useTheme();
 
   return (
     <header className="h-16 bg-surface border-b border-border flex items-center justify-between px-4 lg:px-8 z-30 shadow-sm sticky top-0">
@@ -33,19 +33,10 @@ export function TopNav({ onMenuClick }: TopNavProps) {
 
       <div className="flex items-center gap-4">
         {/* Theme Toggle */}
-        <button 
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="p-2.5 text-text-muted hover:text-text-primary transition-colors bg-surface border border-border rounded-lg shadow-sm hover:border-neutral-400 dark:hover:border-neutral-500"
-        >
-          <Sun className="w-4 h-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute top-2.5 left-2.5 w-4 h-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="sr-only">Toggle theme</span>
-        </button>
+        <ThemeToggle />
 
-        <button className="relative p-2.5 text-text-muted hover:text-text-primary transition-colors bg-surface border border-border rounded-lg shadow-sm hover:border-neutral-400 dark:hover:border-neutral-500">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-danger rounded-full border border-surface"></span>
-        </button>
+        {/* Notification Bell */}
+        <NotificationBell />
         
         <div className="flex items-center gap-3 border-l border-border pl-4">
           <div className="hidden sm:block text-right">

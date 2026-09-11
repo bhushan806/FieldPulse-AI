@@ -57,6 +57,22 @@ def get_otp_collection():
     return get_database()["otp_store"]
 
 
+def get_activity_events_collection():
+    return get_database()["activity_events"]
+
+
+def get_schedule_baselines_collection():
+    return get_database()["schedule_baselines"]
+
+
+def get_issues_collection():
+    return get_database()["issues"]
+
+
+def get_documents_collection():
+    return get_database()["documents"]
+
+
 # ---------------------------------------------------------------------------
 # Startup / shutdown
 # ---------------------------------------------------------------------------
@@ -117,5 +133,35 @@ async def create_indexes():
     await db["otp_store"].create_index(
         [("created_at", ASCENDING)], expireAfterSeconds=300
     )
+
+    # activity_events
+    await db["activity_events"].create_index([
+        ("project_id", ASCENDING),
+        ("activity_id", ASCENDING),
+        ("timestamp", ASCENDING),
+    ])
+    await db["activity_events"].create_index([
+        ("activity_id", ASCENDING),
+        ("event_type", ASCENDING),
+        ("timestamp", ASCENDING),
+    ])
+    await db["activity_events"].create_index([
+        ("activity_id", ASCENDING),
+        ("source_id", ASCENDING),
+    ])
+    await db["activity_events"].create_index([
+        ("project_id", ASCENDING),
+        ("timestamp", ASCENDING),
+    ])
+    await db["activity_events"].create_index([
+        ("idempotency_key", ASCENDING),
+    ], unique=True, sparse=True)
+
+    # schedule_baselines
+    await db["schedule_baselines"].create_index([
+        ("project_id", ASCENDING),
+        ("activity_id", ASCENDING),
+        ("version", ASCENDING),
+    ], unique=True, sparse=True)
 
     print("[DB] All indexes created / verified.")

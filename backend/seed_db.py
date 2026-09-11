@@ -100,22 +100,36 @@ async def seed():
     from bson import ObjectId
     existing_project = await projects_col.find_one({"name": "Sector 4 Pipeline"})
     if existing_project:
-        print("[SEED] Demo project already exists — skipping.")
+        print("[SEED] Demo project already exists — updating schema conformity.")
         project_id = str(existing_project["_id"])
+        await projects_col.update_one(
+            {"_id": existing_project["_id"]},
+            {"$set": {
+                "location": {"type": "Point", "coordinates": [94.92, 27.47]} if not isinstance(existing_project.get("location"), dict) else existing_project["location"],
+                "status": "on_track" if existing_project.get("status") not in ("on_track", "at_risk", "delayed") else existing_project.get("status"),
+                "start_date": existing_project.get("start_date") or datetime(2026, 9, 1),
+                "end_date": existing_project.get("end_date") or datetime(2026, 12, 31),
+                "engineers": existing_project.get("engineers", []),
+            }}
+        )
     else:
         p_oid = ObjectId()
         project_doc = {
             "_id": p_oid,
             "name": "Sector 4 Pipeline",
             "description": "Oil pipeline installation from pumping station to refinery.",
-            "location": "Assam, India",
-            "status": "active",
+            "location": {"type": "Point", "coordinates": [94.92, 27.47]},
+            "status": "on_track",
+            "start_date": datetime(2026, 9, 1),
+            "end_date": datetime(2026, 12, 31),
+            "engineers": [],
             "pm_user_id": pm_id,
             "created_at": datetime.utcnow(),
         }
         await projects_col.insert_one(project_doc)
         project_id = str(p_oid)
         print(f"[SEED] Created project: Sector 4 Pipeline (id={project_id})")
+
 
     # Create demo schedule activities
     existing_acts = await activities_col.count_documents({"project_id": project_id})
@@ -168,12 +182,44 @@ async def seed():
         )
         print("[SEED] Linked project to PM user.")
 
+    # Seed demo site engineer on the project roster
+    demo_phone = "+919876543210"
+    demo_name = "Ramesh Kumar"
+    await projects_col.update_one(
+        {"_id": ObjectId(project_id)},
+        {"$addToSet": {"engineers": {
+            "phone": demo_phone,
+            "name": demo_name,
+            "status": "active",
+            "added_at": datetime.utcnow()
+        }}}
+    )
+    # Seed engineer user document
+    existing_eng = await users_col.find_one({"phone": demo_phone})
+    if not existing_eng:
+        await users_col.insert_one({
+            "_id": ObjectId(),
+            "name": demo_name,
+            "phone": demo_phone,
+            "email": None,
+            "password_hash": None,
+            "role": "site_engineer",
+            "project_ids": [project_id],
+            "created_at": datetime.utcnow(),
+        })
+        print(f"[SEED] Created site engineer user: {demo_name} ({demo_phone})")
+    else:
+        await users_col.update_one(
+            {"_id": existing_eng["_id"]},
+            {"$addToSet": {"project_ids": project_id}}
+        )
+
     client.close()
     print("\n[SEED] Done! Login credentials:")
-    print("  PM:      pm@fieldpulse.dev  / Password123!")
-    print("  HQ:      hq@fieldpulse.dev  / Password123!")
-    print("  Auditor: auditor@fieldpulse.dev / Password123!")
-    print("  Engineer: any phone number — check backend logs for OTP")
+    print("  PM:       pm@fieldpulse.dev  / Password123!")
+    print("  HQ:       hq@fieldpulse.dev  / Password123!")
+    print("  Auditor:  auditor@fieldpulse.dev / Password123!")
+    print("  Engineer: +919876543210 / OTP: 123456 (Mock Mode)")
 
 
 if __name__ == "__main__":

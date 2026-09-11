@@ -13,11 +13,14 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import require_pm
+from app.core.deps import require_pm, require_project_access
 from app.db.mongo import get_activities_collection, get_captures_collection, get_users_collection
+from app.models.activity_event import EventType
 from app.models.capture import CapturePublic, CaptureStatus
-from app.models.user import UserInDB
+from app.models.user import UserInDB, UserRole
+from app.services.activity_event_service import activity_event_service
 from app.websocket.manager import ws_manager
+from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/api/review-queue", tags=["review-queue"])
 
@@ -72,9 +75,13 @@ async def list_pending(
     user_col = get_users_collection()
     act_col = get_activities_collection()
 
-    query: dict = {"status": CaptureStatus.pending_review}
+    query = {"status": CaptureStatus.pending_review.value}
     if project_id:
+        require_project_access(current_user, project_id)
         query["project_id"] = project_id
+    elif current_user.role not in (UserRole.platform_admin, UserRole.hq_admin, UserRole.auditor):
+        query["project_id"] = {"$in": current_user.project_ids}
+
 
     total = await cap_col.count_documents(query)
     cursor = cap_col.find(query).sort("created_at", -1).skip(skip).limit(limit)
@@ -137,6 +144,7 @@ async def approve_capture(
 
     if not cap_doc:
         raise HTTPException(status_code=404, detail="Capture not found.")
+    require_project_access(current_user, cap_doc["project_id"])
 
     if cap_doc["status"] not in (CaptureStatus.pending_review, CaptureStatus.processing):
         raise HTTPException(status_code=400, detail="Capture is not pending review.")
@@ -148,6 +156,8 @@ async def approve_capture(
         raise HTTPException(status_code=400, detail="Invalid activity ID.")
     if not act_doc:
         raise HTTPException(status_code=404, detail="Activity not found.")
+    if act_doc.get("project_id") != cap_doc["project_id"]:
+        raise HTTPException(status_code=422, detail="Activity must belong to the capture project.")
 
     # Update capture
     await cap_col.update_one(
@@ -159,25 +169,72 @@ async def approve_capture(
     )
 
     # Update activity percent_complete
+    current_pct = float(act_doc.get("percent_complete") or 0)
     new_pct = body.percent_complete_override
-    if new_pct is not None:
-        await act_col.update_one(
-            {"_id": ObjectId(body.matched_activity_id)},
-            {"$set": {
-                "percent_complete": new_pct,
-                "status": "completed" if new_pct >= 100 else "in_progress",
-            }},
-        )
-        # Broadcast
-        await ws_manager.broadcast_to_project(
+    if new_pct is None:
+        new_pct = min(100.0, round(current_pct + 15.0, 1))
+    await act_col.update_one(
+        {"_id": ObjectId(body.matched_activity_id)},
+        {"$set": {
+            "percent_complete": new_pct,
+            "status": "completed" if new_pct >= 100 else "in_progress",
+        }},
+    )
+    await write_audit_log(
+        action="capture_approved",
+        actor_user_id=str(current_user.id),
+        target_id=capture_id,
+        project_id=cap_doc["project_id"],
+        before_state={"status": cap_doc["status"]},
+        after_state={"status": CaptureStatus.approved.value, "matched_activity_id": body.matched_activity_id},
+    )
+    await write_audit_log(
+        action="activity_progress_manually_updated",
+        actor_user_id=str(current_user.id),
+        target_id=body.matched_activity_id,
+        project_id=cap_doc["project_id"],
+        before_state={"percent_complete": current_pct},
+        after_state={"percent_complete": new_pct, "capture_id": capture_id},
+    )
+
+    # Time Machine: Record PM approval and progress events
+    try:
+        await activity_event_service.create_event(
             project_id=cap_doc["project_id"],
-            event="activity_updated",
-            data={
-                "activity_id": body.matched_activity_id,
-                "project_id": cap_doc["project_id"],
-                "percent_complete": new_pct,
-            },
+            activity_id=body.matched_activity_id,
+            event_type=EventType.PM_APPROVED,
+            source_type="PM_REVIEW",
+            source_id=capture_id,
+            actor_id=str(current_user.id),
+            description=f"Capture approved by Project Manager {current_user.name}",
+            evidence_ids=[capture_id],
+            metadata={"percent_override": body.percent_complete_override},
         )
+        await activity_event_service.create_event(
+            project_id=cap_doc["project_id"],
+            activity_id=body.matched_activity_id,
+            event_type=EventType.PROGRESS_UPDATE,
+            source_type="PM_REVIEW",
+            source_id=capture_id,
+            actor_id=str(current_user.id),
+            description=f"Progress updated by PM review: {current_pct}% -> {new_pct}%",
+            progress_before=current_pct,
+            progress_after=new_pct,
+            confidence=1.0,
+            evidence_ids=[capture_id],
+        )
+    except Exception as ev_exc:
+        print(f"[ReviewQueue] Error recording approval events: {ev_exc}")
+
+    await ws_manager.broadcast_to_project(
+        project_id=cap_doc["project_id"],
+        event="activity_updated",
+        data={
+            "activity_id": body.matched_activity_id,
+            "project_id": cap_doc["project_id"],
+            "percent_complete": new_pct,
+        },
+    )
 
     return {"message": "Capture approved.", "capture_id": capture_id}
 
@@ -200,6 +257,7 @@ async def reject_capture(
         raise HTTPException(status_code=400, detail="Invalid capture ID.")
     if not cap_doc:
         raise HTTPException(status_code=404, detail="Capture not found.")
+    require_project_access(current_user, cap_doc["project_id"])
 
     await cap_col.update_one(
         {"_id": ObjectId(capture_id)},
@@ -208,5 +266,31 @@ async def reject_capture(
             "rejection_reason": body.reason,
         }},
     )
+    await write_audit_log(
+        action="capture_rejected",
+        actor_user_id=str(current_user.id),
+        target_id=capture_id,
+        project_id=cap_doc["project_id"],
+        before_state={"status": cap_doc["status"]},
+        after_state={"status": CaptureStatus.rejected.value, "reason": body.reason},
+    )
+
+    # Time Machine: Record PM rejection event
+    matched_id = cap_doc.get("matched_activity_id")
+    if matched_id:
+        try:
+            await activity_event_service.create_event(
+                project_id=cap_doc["project_id"],
+                activity_id=matched_id,
+                event_type=EventType.PM_REJECTED,
+                source_type="PM_REVIEW",
+                source_id=capture_id,
+                actor_id=str(current_user.id),
+                description=f"Capture rejected by PM. Reason: {body.reason}",
+                evidence_ids=[capture_id],
+                metadata={"rejection_reason": body.reason},
+            )
+        except Exception as ev_exc:
+            print(f"[ReviewQueue] Error recording rejection event: {ev_exc}")
 
     return {"message": "Capture rejected.", "capture_id": capture_id}

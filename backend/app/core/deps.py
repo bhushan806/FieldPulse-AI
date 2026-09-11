@@ -62,6 +62,26 @@ def require_roles(allowed: List[UserRole]):
     return _guard
 
 
+def user_can_access_project(current_user: UserInDB, project_id: str) -> bool:
+    """Return whether a user is allowed to read or mutate a project.
+
+    HQ and auditors are organisation-wide roles. Every other role must be
+    explicitly assigned to the project in the persisted user record.
+    """
+    if current_user.role in (UserRole.platform_admin, UserRole.hq_admin, UserRole.auditor):
+        return True
+    return project_id in current_user.project_ids
+
+
+def require_project_access(current_user: UserInDB, project_id: str) -> None:
+    """Raise a consistent error before a project-scoped data operation."""
+    if not user_can_access_project(current_user, project_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not assigned to this project.",
+        )
+
+
 # Convenience pre-built guards
 require_engineer       = require_roles([UserRole.site_engineer])
 require_pm             = require_roles([UserRole.project_manager])
@@ -70,4 +90,3 @@ require_auditor        = require_roles([UserRole.auditor])
 require_pm_or_above    = require_roles([UserRole.project_manager, UserRole.hq_admin, UserRole.auditor])
 require_hq_or_auditor  = require_roles([UserRole.hq_admin, UserRole.auditor])
 require_platform_admin = require_roles([UserRole.platform_admin])
-

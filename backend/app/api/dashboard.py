@@ -16,8 +16,8 @@ from app.ai_engine.forecasting import (
     compute_project_status,
     detect_delayed_activities,
 )
-from app.core.deps import get_current_user, require_hq_or_auditor, require_pm_or_above
-from app.db.mongo import get_activities_collection, get_projects_collection
+from app.core.deps import get_current_user, require_hq_or_auditor, require_pm_or_above, require_project_access
+from app.db.mongo import get_activities_collection, get_projects_collection, get_captures_collection, get_users_collection
 from app.models.activity import ScheduleActivityInDB
 from app.models.user import UserInDB, UserRole
 
@@ -51,6 +51,8 @@ class ProjectSummary(BaseModel):
     status: str
     percent_complete: float
     location: Optional[Any] = None
+    pm_name: Optional[str] = None
+    last_activity_at: Optional[Any] = None
 
 
 class PortfolioDashboard(BaseModel):
@@ -68,7 +70,7 @@ class PortfolioDashboard(BaseModel):
 
 async def _get_activities(project_id: str) -> List[ScheduleActivityInDB]:
     col = get_activities_collection()
-    docs = await col.find({"project_id": project_id}).to_list(length=None)
+    docs = await col.find({"project_id": project_id}).to_list(length=500)
     return [ScheduleActivityInDB(**d) for d in docs]
 
 
@@ -107,12 +109,21 @@ async def portfolio_dashboard(
             delayed_count += 1
 
         total_pct += pct
+        pm_name = None
+        if proj.get("pm_user_id") and ObjectId.is_valid(proj["pm_user_id"]):
+            pm = await get_users_collection().find_one({"_id": ObjectId(proj["pm_user_id"])})
+            pm_name = pm.get("name") if pm else None
+        last_capture = await get_captures_collection().find_one(
+            {"project_id": pid}, sort=[("created_at", -1)]
+        )
         summaries.append(ProjectSummary(
             id=pid,
             name=proj.get("name", "Unknown"),
             status=proj_status,
             percent_complete=pct,
             location=proj.get("location"),
+            pm_name=pm_name,
+            last_activity_at=last_capture.get("created_at") if last_capture else None,
         ))
 
     n = len(all_projects) or 1
@@ -143,6 +154,7 @@ async def project_dashboard(
         raise HTTPException(status_code=400, detail="Invalid project ID.")
     if not proj_doc:
         raise HTTPException(status_code=404, detail="Project not found.")
+    require_project_access(current_user, project_id)
 
     activities = await _get_activities(project_id)
     n = len(activities) or 1

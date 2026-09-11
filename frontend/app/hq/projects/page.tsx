@@ -47,8 +47,8 @@ export default function HQProjectsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'On Track', value: data?.on_track ?? 0, classes: 'text-success bg-success-bg border-success/20' },
-          { label: 'At Risk', value: data?.at_risk ?? 0, classes: 'text-warning bg-warning-bg border-warning/20' },
+          { label: 'On Track', value: data?.onTrack ?? 0, classes: 'text-success bg-success-bg border-success/20' },
+          { label: 'At Risk', value: data?.atRisk ?? 0, classes: 'text-warning bg-warning-bg border-warning/20' },
           { label: 'Delayed', value: data?.delayed ?? 0, classes: 'text-danger bg-danger-bg border-danger/20' },
         ].map((s) => (
           <div key={s.label} className={`card p-5 border shadow-sm ${s.classes}`}>
@@ -61,9 +61,9 @@ export default function HQProjectsPage() {
       {/* Projects Table */}
       <div className="card p-0 overflow-hidden shadow-sm">
         {/* Table Header Controls */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-white">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface">
           <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-brand-600" />
+            <Briefcase className="w-4 h-4 text-brand-600 dark:text-brand-400" />
             All Projects
           </h2>
           <div className="flex items-center gap-2">
@@ -71,11 +71,11 @@ export default function HQProjectsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
               <input
                 type="text"
-                placeholder="Search..."
-                className="bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none w-48 shadow-sm"
+                placeholder="Search projects..."
+                className="bg-surface border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none w-48 shadow-sm"
               />
             </div>
-            <button className="p-2 bg-white border border-border rounded-lg text-text-muted hover:text-text-primary shadow-sm hover:border-border-strong">
+            <button className="p-2 bg-surface border border-border rounded-lg text-text-muted hover:text-text-primary shadow-sm hover:border-border-strong">
               <Filter className="w-4 h-4" />
             </button>
           </div>
@@ -151,7 +151,7 @@ export default function HQProjectsPage() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); router.push(`/hq/projects/${proj.id}/setup`); }}
-                            className="text-brand-600 hover:text-brand-800 font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity bg-brand-50 px-3 py-1.5 rounded-lg border border-brand-100"
+                            className="text-brand-600 dark:text-brand-400 font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity bg-brand-500/10 px-3 py-1.5 rounded-lg border border-brand-500/20"
                           >
                             Manage
                           </button>

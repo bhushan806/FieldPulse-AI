@@ -52,7 +52,7 @@ async def send_otp(phone: str) -> str:
 
     if provider == "mock":
         # In mock mode just print — visible in server logs
-        print(f"[OTP MOCK] Phone={phone}  OTP={otp}")
+        print(f"[OTP MOCK] Phone={phone}  OTP={otp} (Fallback: 123456)")
 
     elif provider == "msg91":
         import httpx
@@ -85,11 +85,21 @@ async def send_otp(phone: str) -> str:
 async def verify_otp(phone: str, otp: str) -> bool:
     """
     Verify the submitted OTP.  Returns True and consumes the record if correct.
+    In mock mode, accepts 123456 or 000000 as a universal demo fallback.
     """
+    submitted = otp.strip()
+    provider = settings.OTP_PROVIDER.lower()
+
+    # Universal mock bypass for dev / demo mode
+    if provider == "mock" and submitted in ("123456", "000000"):
+        print(f"[OTP MOCK] Verified via demo fallback code '{submitted}' for {phone}")
+        await _delete_otp(phone)
+        return True
+
     stored = await _retrieve_otp(phone)
     if stored is None:
         return False
-    if stored == otp.strip():
+    if stored == submitted:
         await _delete_otp(phone)
         return True
     return False

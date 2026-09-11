@@ -5,6 +5,7 @@ import { useUIStore } from '@/store/uiStore';
 import { NotificationToast } from './NotificationToast';
 import { AIAssistant } from './AIAssistant';
 import { useAuthStore } from '@/store/authStore';
+import { getUserProjectIds } from '@/lib/utils';
 import { socket } from '@/lib/socket';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +15,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const projectId = user?.project_ids?.[0];
+    const projectId = getUserProjectIds(user)[0];
     if (projectId) {
       socket.connect(projectId);
 
@@ -39,14 +40,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   }, [user, addNotification, queryClient]);
 
   return (
-    <div className={`relative min-h-screen font-sans overflow-x-hidden ${theme}`}>
+    <div className="relative min-h-screen font-sans overflow-x-hidden bg-background text-text-primary">
       {/* Background Orbs */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-background">
         <div className="orb orb-primary" />
         <div className="orb orb-accent" />
-        
-        {/* Subtle grid pattern for dark mode */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_10%,transparent_100%)]" />
       </div>
 
       {/* Main Content */}
@@ -55,7 +53,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Global Notifications */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] pointer-events-none [&>*]:pointer-events-auto">
         <NotificationToast />
       </div>
 

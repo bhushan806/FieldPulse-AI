@@ -6,6 +6,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, CheckSquare, CalendarDays, Users, Menu, Bell, LogOut, Search, Globe, AlertTriangle, FileText, ShieldAlert } from 'lucide-react';
 import { RoleGuard } from '@/components/shared/RoleGuard';
 import { useAuthStore } from '@/store/authStore';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { NotificationBell } from '@/components/shared/NotificationBell';
+import { FieldPulseLogo } from '@/components/shared/FieldPulseLogo';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <RoleGuard allowedRoles={['platform_admin']}>
-      <div className="flex h-screen bg-bg-app overflow-hidden">
+      <div className="flex h-screen bg-background overflow-hidden">
         
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
@@ -46,10 +49,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           <div className="p-6 border-b border-border">
-            <h1 className="text-xl font-bold text-text-primary">
-              FieldPulse <span className="text-danger font-light">AI</span>
-            </h1>
-            <p className="text-xs text-text-secondary mt-1 uppercase tracking-wider font-semibold text-danger">Platform Admin</p>
+            <FieldPulseLogo size="md" href="/admin/dashboard" />
+            <div className="mt-2">
+              <span className="text-xs text-danger uppercase tracking-wider font-bold bg-danger/10 px-2 py-0.5 rounded border border-danger/20">
+                Platform Admin
+              </span>
+            </div>
           </div>
 
           <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
@@ -107,10 +112,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
 
             <div className="flex items-center gap-4">
-              <button className="relative p-2 text-text-muted hover:text-text-primary transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full border-2 border-surface"></span>
-              </button>
+              <ThemeToggle />
+              <NotificationBell />
               
               <div className="flex items-center gap-3 border-l border-border pl-4">
                 <div className="hidden sm:block text-right">

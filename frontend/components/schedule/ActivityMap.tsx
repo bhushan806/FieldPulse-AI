@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { ScheduleActivity } from '@/types/api';
+import { getMapTileLayer } from '@/lib/mapTiles';
 
 // Fix for default marker icons in Leaflet with Next.js
 const customIcon = (color: string) => new L.Icon({
@@ -24,9 +25,12 @@ export default function ActivityMap({ activities }: { activities: ScheduleActivi
     setMounted(true);
     
     // Calculate center based on activities if available
-    if (activities.length > 0) {
-      const avgLat = activities.reduce((sum, act) => sum + act.location.coordinates[1], 0) / activities.length;
-      const avgLng = activities.reduce((sum, act) => sum + act.location.coordinates[0], 0) / activities.length;
+    const located = activities.filter(
+      (act) => act.location?.coordinates?.length === 2
+    );
+    if (located.length > 0) {
+      const avgLat = located.reduce((sum, act) => sum + act.location.coordinates[1], 0) / located.length;
+      const avgLng = located.reduce((sum, act) => sum + act.location.coordinates[0], 0) / located.length;
       setCenter([avgLat, avgLng]);
     } else {
       // Try to get user location
@@ -50,11 +54,11 @@ export default function ActivityMap({ activities }: { activities: ScheduleActivi
         zoomControl={false}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url={process.env.NEXT_PUBLIC_MAP_TILE_URL || "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"}
+          attribution={getMapTileLayer().attribution}
+          url={getMapTileLayer().url}
         />
         
-        {activities.map((activity) => {
+        {activities.filter((a) => a.location?.coordinates?.length === 2).map((activity) => {
           // Determine color based on status
           let color = 'blue';
           if (activity.status === 'delayed') color = 'red';
@@ -77,7 +81,15 @@ export default function ActivityMap({ activities }: { activities: ScheduleActivi
                       style={{ width: `${activity.percentComplete}%` }}
                     />
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">{activity.percentComplete}% Complete</p>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                    <p className="text-xs text-slate-500">{activity.percentComplete}% Complete</p>
+                    <a
+                      href={`/pm/time-machine/${activity.id}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Time Machine →
+                    </a>
+                  </div>
                 </div>
               </Popup>
             </Marker>
