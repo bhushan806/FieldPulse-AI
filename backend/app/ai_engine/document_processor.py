@@ -8,8 +8,15 @@ import json
 import traceback
 from typing import List, Dict, Optional
 
-import PyPDF2
-from huggingface_hub import AsyncInferenceClient
+try:
+    import PyPDF2
+except ImportError:
+    PyPDF2 = None
+
+try:
+    from huggingface_hub import AsyncInferenceClient
+except ImportError:
+    AsyncInferenceClient = None
 
 from app.core.config import settings
 from app.db.mongo import get_database
@@ -32,7 +39,7 @@ async def process_document_background(doc_id: str, raw_bytes: bytes, filename: s
         extracted_text = ""
         
         # 1. Extract Text
-        if filename.lower().endswith(".pdf"):
+        if filename.lower().endswith(".pdf") and PyPDF2 is not None:
             pdf_file = io.BytesIO(raw_bytes)
             reader = PyPDF2.PdfReader(pdf_file)
             for page in reader.pages:

@@ -28,27 +28,33 @@ class AlertListResponse(BaseModel):
 @router.get("/", response_model=AlertListResponse)
 async def list_alerts(
     project_id: Optional[str] = None,
+    sync: bool = False,
     skip: int = 0,
     limit: int = 50,
     current_user: UserInDB = Depends(get_current_user),
 ):
-    # Auto-sync delay alerts for project(s)
-    try:
-        from app.ai_engine.forecasting import sync_project_delay_alerts
-        if project_id:
-            await sync_project_delay_alerts(project_id)
-        elif current_user.role in (UserRole.hq_admin, UserRole.auditor, UserRole.platform_admin):
-            from app.db.mongo import get_projects_collection
-            p_cursor = get_projects_collection().find({}, {"_id": 1})
-            p_list = await p_cursor.to_list(length=20)
-            for p in p_list:
-                await sync_project_delay_alerts(str(p["_id"]))
-        elif current_user.project_ids:
-            for pid in current_user.project_ids:
-                if ObjectId.is_valid(pid):
-                    await sync_project_delay_alerts(pid)
-    except Exception as exc:
-        print(f"[Alerts] Sync error: {exc}")
+    """
+    List alerts for current user or project.
+    By default (sync=False), queries cached notifications instantly (<50ms).
+    Pass sync=True to trigger explicit re-forecasting delay checks.
+    """
+    if sync:
+        try:
+            from app.ai_engine.forecasting import sync_project_delay_alerts
+            if project_id:
+                await sync_project_delay_alerts(project_id)
+            elif current_user.role in (UserRole.hq_admin, UserRole.auditor, UserRole.platform_admin):
+                from app.db.mongo import get_projects_collection
+                p_cursor = get_projects_collection().find({}, {"_id": 1})
+                p_list = await p_cursor.to_list(length=10)
+                for p in p_list:
+                    await sync_project_delay_alerts(str(p["_id"]))
+            elif current_user.project_ids:
+                for pid in current_user.project_ids:
+                    if ObjectId.is_valid(pid):
+                        await sync_project_delay_alerts(pid)
+        except Exception as exc:
+            print(f"[Alerts] Sync error: {exc}")
 
     col = get_notifications_collection()
     query: dict = {}

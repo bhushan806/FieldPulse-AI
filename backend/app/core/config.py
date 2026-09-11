@@ -6,6 +6,10 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # Environment & Deployment
+    ENVIRONMENT: str = "development"    # "development" | "staging" | "production"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # MongoDB
     MONGO_URI: str = "mongodb://localhost:27017"
     MONGO_DB_NAME: str = "fieldpulse_ai"
@@ -27,6 +31,7 @@ class Settings(BaseSettings):
 
     # OTP Provider (MSG91 / Twilio — left empty for mock mode)
     OTP_PROVIDER: str = "mock"          # "mock" | "msg91" | "twilio"
+    MAX_OTP_ATTEMPTS: int = 5
     MSG91_AUTH_KEY: str = ""
     MSG91_TEMPLATE_ID: str = ""
     TWILIO_ACCOUNT_SID: str = ""

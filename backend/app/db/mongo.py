@@ -4,7 +4,7 @@ Motor async MongoDB client, database/collection accessors, and index creation.
 """
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import ASCENDING, GEOSPHERE
+from pymongo import ASCENDING, DESCENDING, GEOSPHERE
 from app.core.config import settings
 
 
@@ -113,14 +113,30 @@ async def create_indexes():
 
     # schedule_activities
     await db["schedule_activities"].create_index([("project_id", ASCENDING)])
+    await db["schedule_activities"].create_index([("project_id", ASCENDING), ("status", ASCENDING)])
+    await db["schedule_activities"].create_index([("activity_code", ASCENDING)], sparse=True)
     await db["schedule_activities"].create_index(
         [("location", GEOSPHERE)], sparse=True
     )
 
     # captures
     await db["captures"].create_index([("project_id", ASCENDING)])
+    await db["captures"].create_index([("project_id", ASCENDING), ("status", ASCENDING)])
     await db["captures"].create_index([("user_id", ASCENDING)])
     await db["captures"].create_index([("status", ASCENDING)])
+    await db["captures"].create_index([("created_at", DESCENDING)])
+
+    # issues
+    await db["issues"].create_index([("project_id", ASCENDING), ("status", ASCENDING)])
+    await db["issues"].create_index([("assigned_to", ASCENDING)], sparse=True)
+    await db["issues"].create_index([("created_at", DESCENDING)])
+
+    # documents
+    await db["documents"].create_index([("project_id", ASCENDING), ("created_at", DESCENDING)])
+    await db["documents"].create_index([("created_at", DESCENDING)])
+
+    # projects
+    await db["projects"].create_index([("created_at", DESCENDING)])
 
     # audit_logs
     await db["audit_logs"].create_index([("target_id", ASCENDING)])

@@ -87,32 +87,53 @@ async def list_pending(
     cursor = cap_col.find(query).sort("created_at", -1).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
 
+    # Batch fetch users and suggested activities to eliminate N+1 latency
+    user_oids = [
+        ObjectId(d["user_id"])
+        for d in docs
+        if d.get("user_id") and ObjectId.is_valid(d["user_id"])
+    ]
+    act_oids = [
+        ObjectId(d["matched_activity_id"])
+        for d in docs
+        if d.get("matched_activity_id") and ObjectId.is_valid(d["matched_activity_id"])
+    ]
+
+    users_map = {}
+    if user_oids:
+        user_cursor = user_col.find({"_id": {"$in": user_oids}}, {"name": 1})
+        user_list = await user_cursor.to_list(length=len(user_oids))
+        users_map = {str(u["_id"]): u.get("name", "Unknown") for u in user_list}
+
+    acts_map = {}
+    if act_oids:
+        act_cursor = act_col.find(
+            {"_id": {"$in": act_oids}},
+            {"activity_code": 1, "activity_name": 1}
+        )
+        act_list = await act_cursor.to_list(length=len(act_oids))
+        acts_map = {
+            str(a["_id"]): SuggestedActivity(
+                id=str(a["_id"]),
+                activity_code=a.get("activity_code", ""),
+                activity_name=a.get("activity_name", ""),
+            )
+            for a in act_list
+        }
+
     items: List[ReviewQueueItem] = []
     for d in docs:
         d["id"] = str(d.pop("_id"))
 
-        # Join: submitted_by
+        # Map user
         submitted_by = None
-        try:
-            user_doc = await user_col.find_one({"_id": ObjectId(d["user_id"])})
-            if user_doc:
-                submitted_by = SubmittedBy(id=str(user_doc["_id"]), name=user_doc["name"])
-        except Exception:
-            pass
+        uid = str(d.get("user_id", ""))
+        if uid in users_map:
+            submitted_by = SubmittedBy(id=uid, name=users_map[uid])
 
-        # Join: suggested_activity (AI-matched)
-        suggested_activity = None
-        if d.get("matched_activity_id"):
-            try:
-                act_doc = await act_col.find_one({"_id": ObjectId(d["matched_activity_id"])})
-                if act_doc:
-                    suggested_activity = SuggestedActivity(
-                        id=str(act_doc["_id"]),
-                        activity_code=act_doc["activity_code"],
-                        activity_name=act_doc["activity_name"],
-                    )
-            except Exception:
-                pass
+        # Map activity
+        aid = str(d.get("matched_activity_id", ""))
+        suggested_activity = acts_map.get(aid)
 
         capture_pub = CapturePublic(**d)
         items.append(ReviewQueueItem(

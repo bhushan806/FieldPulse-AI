@@ -6,13 +6,16 @@ import io
 import os
 from typing import Optional
 
-import cloudinary
-import cloudinary.uploader
+try:
+    import cloudinary
+    import cloudinary.uploader
+except ImportError:
+    cloudinary = None
 
 from app.core.config import settings
 
 def _configure():
-    if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY:
+    if cloudinary and settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY:
         cloudinary.config(
             cloud_name=settings.CLOUDINARY_CLOUD_NAME,
             api_key=settings.CLOUDINARY_API_KEY,
@@ -33,7 +36,7 @@ async def upload_media(
     Returns the secure_url string.
     If Cloudinary is not configured, falls back to local disk storage for dev.
     """
-    if not settings.CLOUDINARY_CLOUD_NAME or not settings.CLOUDINARY_API_KEY:
+    if not cloudinary or not settings.CLOUDINARY_CLOUD_NAME or not settings.CLOUDINARY_API_KEY:
         # Fallback to local storage
         uploads_dir = os.path.join(os.getcwd(), "uploads", folder)
         os.makedirs(uploads_dir, exist_ok=True)
@@ -55,6 +58,6 @@ async def upload_media(
 
 async def delete_media(public_id: str, resource_type: str = "image") -> None:
     """Delete an asset from Cloudinary by its public_id."""
-    if not settings.CLOUDINARY_CLOUD_NAME:
+    if not cloudinary or not settings.CLOUDINARY_CLOUD_NAME:
         return
     cloudinary.uploader.destroy(public_id, resource_type=resource_type)

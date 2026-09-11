@@ -3,11 +3,20 @@ backend/app/ai_engine/vision.py
 CLIP-based image classification + imagehash duplicate detection.
 Uses open_clip (HuggingFace compatible) for zero-shot classification.
 """
+import hashlib
 import io
 from typing import List, Optional, Tuple
 
-import imagehash
-import torch
+try:
+    import imagehash
+except ImportError:
+    imagehash = None
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
 from PIL import Image
 
 # Lazy-loaded globals — models are loaded once at first use to avoid slowing startup
@@ -65,13 +74,27 @@ async def classify_image(
 
 
 def compute_image_hash(image_bytes: bytes) -> str:
-    """Compute a perceptual hash (pHash) for duplicate detection."""
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    return str(imagehash.phash(image))
+    """Compute a perceptual hash (pHash) for duplicate detection or SHA-256 fallback."""
+    if imagehash is not None:
+        try:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            return str(imagehash.phash(image))
+        except Exception:
+            pass
+    return hashlib.sha256(image_bytes).hexdigest()[:16]
 
 
 def images_are_duplicates(hash1: str, hash2: str, threshold: int = 8) -> bool:
-    """Return True if two pHash strings differ by <= threshold bits."""
-    h1 = imagehash.hex_to_hash(hash1)
-    h2 = imagehash.hex_to_hash(hash2)
-    return (h1 - h2) <= threshold
+    """Return True if two hash strings match or differ within threshold."""
+    if not hash1 or not hash2:
+        return False
+    if hash1 == hash2:
+        return True
+    if imagehash is not None:
+        try:
+            h1 = imagehash.hex_to_hash(hash1)
+            h2 = imagehash.hex_to_hash(hash2)
+            return (h1 - h2) <= threshold
+        except Exception:
+            pass
+    return False

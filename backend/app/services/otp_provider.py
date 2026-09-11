@@ -5,7 +5,7 @@ Supports: mock (dev/test), MSG91, Twilio.
 """
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.config import settings
@@ -23,7 +23,12 @@ def _generate_otp(length: int = 6) -> str:
 async def _store_otp(phone: str, otp: str) -> None:
     col = get_otp_collection()
     await col.delete_many({"phone": phone})          # one OTP per phone at a time
-    await col.insert_one({"phone": phone, "otp": otp, "created_at": datetime.utcnow()})
+    await col.insert_one({
+        "phone": phone,
+        "otp": otp,
+        "attempts": 0,
+        "created_at": datetime.now(timezone.utc),
+    })
 
 
 async def _retrieve_otp(phone: str) -> Optional[str]:
@@ -84,22 +89,38 @@ async def send_otp(phone: str) -> str:
 
 async def verify_otp(phone: str, otp: str) -> bool:
     """
-    Verify the submitted OTP.  Returns True and consumes the record if correct.
-    In mock mode, accepts 123456 or 000000 as a universal demo fallback.
+    Verify the submitted OTP. Returns True and consumes the record if correct.
+    In mock mode, accepts 123456 or 000000 as universal demo fallback ONLY in non-production environments.
+    Enforces maximum attempt limits (MAX_OTP_ATTEMPTS) to mitigate brute-force attacks.
     """
     submitted = otp.strip()
     provider = settings.OTP_PROVIDER.lower()
+    is_production = getattr(settings, "ENVIRONMENT", "development").lower() == "production"
 
-    # Universal mock bypass for dev / demo mode
-    if provider == "mock" and submitted in ("123456", "000000"):
+    # Universal mock bypass for dev / demo mode ONLY when not in production
+    if not is_production and provider == "mock" and submitted in ("123456", "000000"):
         print(f"[OTP MOCK] Verified via demo fallback code '{submitted}' for {phone}")
         await _delete_otp(phone)
         return True
 
-    stored = await _retrieve_otp(phone)
-    if stored is None:
+    col = get_otp_collection()
+    doc = await col.find_one({"phone": phone})
+    if not doc:
         return False
-    if stored == submitted:
+
+    attempts = doc.get("attempts", 0) + 1
+    max_attempts = getattr(settings, "MAX_OTP_ATTEMPTS", 5)
+
+    if attempts >= max_attempts:
+        # Exceeded attempt limit: invalidate OTP immediately to prevent further brute-force
+        print(f"[OTP SECURITY] Lockout: Phone {phone} reached max attempts ({attempts}/{max_attempts}). Invalidated.")
+        await _delete_otp(phone)
+        return False
+
+    if doc.get("otp") == submitted:
         await _delete_otp(phone)
         return True
-    return False
+    else:
+        # Track failed attempt
+        await col.update_one({"phone": phone}, {"$set": {"attempts": attempts}})
+        return False

@@ -14,7 +14,31 @@ auto_approved / pending_review decision based on thresholds.
 """
 from typing import List, Optional, Tuple
 
-from rapidfuzz import fuzz, process
+try:
+    from rapidfuzz import fuzz, process
+except ImportError:
+    import difflib
+
+    class _FuzzFallback:
+        @staticmethod
+        def partial_ratio(s1, s2):
+            if not s1 or not s2:
+                return 0.0
+            s1, s2 = str(s1).lower(), str(s2).lower()
+            if s1 in s2 or s2 in s1:
+                return 100.0
+            return difflib.SequenceMatcher(None, s1, s2).ratio() * 100.0
+
+        @staticmethod
+        def token_set_ratio(s1, s2):
+            if not s1 or not s2:
+                return 0.0
+            t1 = " ".join(sorted(set(str(s1).lower().split())))
+            t2 = " ".join(sorted(set(str(s2).lower().split())))
+            return difflib.SequenceMatcher(None, t1, t2).ratio() * 100.0
+
+    fuzz = _FuzzFallback()
+    process = None
 
 from app.models.activity import ScheduleActivityInDB
 from app.models.capture import CaptureStatus, CvClassification, ExtractedEntities

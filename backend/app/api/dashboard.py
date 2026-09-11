@@ -82,9 +82,55 @@ async def _get_activities(project_id: str) -> List[ScheduleActivityInDB]:
 async def portfolio_dashboard(
     current_user: UserInDB = Depends(require_hq_or_auditor),
 ):
-    """Portfolio-wide view for HQ Admin and Auditor."""
+    """Portfolio-wide view for HQ Admin and Auditor (batch optimized)."""
     proj_col = get_projects_collection()
+    act_col = get_activities_collection()
+    user_col = get_users_collection()
+    cap_col = get_captures_collection()
+
     all_projects = await proj_col.find({}).to_list(length=None)
+    if not all_projects:
+        return PortfolioDashboard(
+            total_projects=0,
+            on_track=0,
+            at_risk=0,
+            delayed=0,
+            overall_percent_complete=0.0,
+            projects=[],
+        )
+
+    all_project_ids = [str(p["_id"]) for p in all_projects]
+
+    # 1. Batch fetch all activities across projects in one query
+    act_docs = await act_col.find({"project_id": {"$in": all_project_ids}}).to_list(length=None)
+    activities_by_pid: dict[str, list[ScheduleActivityInDB]] = {}
+    for d in act_docs:
+        pid = d.get("project_id")
+        if pid:
+            if pid not in activities_by_pid:
+                activities_by_pid[pid] = []
+            activities_by_pid[pid].append(ScheduleActivityInDB(**d))
+
+    # 2. Batch fetch all PM user names in one query
+    pm_oids = [
+        ObjectId(p["pm_user_id"])
+        for p in all_projects
+        if p.get("pm_user_id") and ObjectId.is_valid(p["pm_user_id"])
+    ]
+    pms_map: dict[str, str] = {}
+    if pm_oids:
+        pm_cursor = user_col.find({"_id": {"$in": pm_oids}}, {"name": 1})
+        pm_list = await pm_cursor.to_list(length=len(pm_oids))
+        pms_map = {str(u["_id"]): u.get("name") for u in pm_list if u.get("name")}
+
+    # 3. Batch aggregate latest capture created_at per project
+    last_capture_pipeline = [
+        {"$match": {"project_id": {"$in": all_project_ids}}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {"_id": "$project_id", "last_activity_at": {"$first": "$created_at"}}},
+    ]
+    last_captures = await cap_col.aggregate(last_capture_pipeline).to_list(length=None)
+    last_capture_map = {c["_id"]: c.get("last_activity_at") for c in last_captures}
 
     summaries: List[ProjectSummary] = []
     on_track = at_risk = delayed_count = 0
@@ -92,7 +138,7 @@ async def portfolio_dashboard(
 
     for proj in all_projects:
         pid = str(proj["_id"])
-        activities = await _get_activities(pid)
+        activities = activities_by_pid.get(pid, [])
 
         if activities:
             pct = round(sum(a.percent_complete for a in activities) / len(activities), 2)
@@ -109,13 +155,9 @@ async def portfolio_dashboard(
             delayed_count += 1
 
         total_pct += pct
-        pm_name = None
-        if proj.get("pm_user_id") and ObjectId.is_valid(proj["pm_user_id"]):
-            pm = await get_users_collection().find_one({"_id": ObjectId(proj["pm_user_id"])})
-            pm_name = pm.get("name") if pm else None
-        last_capture = await get_captures_collection().find_one(
-            {"project_id": pid}, sort=[("created_at", -1)]
-        )
+        pm_uid = str(proj.get("pm_user_id", ""))
+        pm_name = pms_map.get(pm_uid)
+
         summaries.append(ProjectSummary(
             id=pid,
             name=proj.get("name", "Unknown"),
@@ -123,7 +165,7 @@ async def portfolio_dashboard(
             percent_complete=pct,
             location=proj.get("location"),
             pm_name=pm_name,
-            last_activity_at=last_capture.get("created_at") if last_capture else None,
+            last_activity_at=last_capture_map.get(pid),
         ))
 
     n = len(all_projects) or 1

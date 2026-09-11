@@ -135,3 +135,50 @@ async def list_documents(
         items.append(ProjectDocumentPublic(**d))
         
     return DocumentListResponse(items=items, total=total)
+
+
+@router.get("/{document_id}", response_model=ProjectDocumentPublic)
+async def get_document(
+    document_id: str,
+    current_user: UserInDB = Depends(require_pm_or_above),
+):
+    """Retrieve a single document by ID with strict IDOR access control."""
+    if not ObjectId.is_valid(document_id):
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+
+    db = get_database()
+    doc = await db["documents"].find_one({"_id": ObjectId(document_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    require_project_access(current_user, doc["project_id"])
+    doc["id"] = str(doc.pop("_id"))
+    return ProjectDocumentPublic(**doc)
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_200_OK)
+async def delete_document(
+    document_id: str,
+    current_user: UserInDB = Depends(require_hq_admin),
+):
+    """Delete a project document (HQ Admin only, with strict tenant check)."""
+    if not ObjectId.is_valid(document_id):
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+
+    db = get_database()
+    doc = await db["documents"].find_one({"_id": ObjectId(document_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    require_project_access(current_user, doc["project_id"])
+    await db["documents"].delete_one({"_id": ObjectId(document_id)})
+
+    await write_audit_log(
+        action="project_document_deleted",
+        actor_user_id=str(current_user.id),
+        target_id=document_id,
+        project_id=doc["project_id"],
+        before_state={"filename": doc.get("filename"), "size_bytes": doc.get("size_bytes")},
+    )
+
+    return {"detail": "Document deleted successfully."}
