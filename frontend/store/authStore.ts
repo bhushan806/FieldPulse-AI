@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAIStore } from '@/store/aiStore';
 
 export type UserRole = 'site_engineer' | 'project_manager' | 'hq_admin' | 'auditor' | 'platform_admin';
 
@@ -83,9 +84,13 @@ export const useAuthStore = create<AuthState>()(
         if (typeof document !== 'undefined') {
           document.cookie = `role=${normalized.role}; path=/; max-age=3600; SameSite=Lax`;
         }
+        if (normalized?.id) {
+          useAIStore.getState().initForUser(normalized.id, normalized.role, normalized.name);
+        }
       },
 
       logout: () => {
+        useAIStore.getState().resetUser();
         set({
           user: null,
           role: null,
@@ -101,6 +106,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setAuthError: () => {
+        useAIStore.getState().resetUser();
         set({
           user: null,
           role: null,
@@ -125,6 +131,9 @@ export const useAuthStore = create<AuthState>()(
           const status: AuthStatus = state.accessToken ? 'AUTHENTICATED' : 'UNAUTHENTICATED';
           state.authStatus = status;
           state.isHydrated = true;
+          if (state.user?.id && state.accessToken) {
+            useAIStore.getState().initForUser(state.user.id, state.user.role, state.user.name);
+          }
         }
       },
       partialize: (state) => ({

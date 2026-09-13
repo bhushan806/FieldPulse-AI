@@ -15,7 +15,7 @@
 
 export type UserRole = "site_engineer" | "project_manager" | "hq_admin" | "auditor" | "platform_admin";
 
-export type MediaType = "photo" | "video" | "voice" | "qr";
+export type MediaType = "photo" | "video" | "voice" | "qr" | "document";
 
 export type CaptureStatus =
   | "processing"

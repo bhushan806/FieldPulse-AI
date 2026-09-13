@@ -24,19 +24,49 @@ import {
   Sparkles,
   MapPin,
   QrCode,
-  Check
+  Check,
+  Loader2,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { FieldPulseLogo } from '@/components/shared/FieldPulseLogo';
 import { FieldPulseIcon } from '@/components/shared/FieldPulseIcon';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { AuthModal } from '@/components/shared/AuthModal';
+import { useAuthStore } from '@/store/authStore';
 
 export default function EnterpriseLandingPage() {
+  const router = useRouter();
+  const { authStatus, role } = useAuthStore();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'signin' | 'request'>('signin');
   const [scrolled, setScrolled] = useState(false);
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+
+  // If user is already authenticated or just logged in, redirect immediately without rendering landing page
+  useEffect(() => {
+    if (authStatus === 'AUTHENTICATED' && role) {
+      const dashboardPaths: Record<string, string> = {
+        site_engineer: '/engineer/home',
+        project_manager: '/pm/dashboard',
+        hq_admin: '/hq/portfolio',
+        auditor: '/hq/portfolio',
+        platform_admin: '/admin/dashboard',
+      };
+      const dest = dashboardPaths[role];
+      if (dest) {
+        router.replace(dest);
+      }
+    }
+  }, [authStatus, role, router]);
+
+  // Prefetch popular dashboard routes on landing page load for instant navigation
+  useEffect(() => {
+    router.prefetch('/hq/portfolio');
+    router.prefetch('/pm/dashboard');
+    router.prefetch('/engineer/home');
+    router.prefetch('/admin/dashboard');
+  }, [router]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30);
@@ -56,6 +86,18 @@ export default function EnterpriseLandingPage() {
     setAuthModalTab(tab);
     setAuthModalOpen(true);
   };
+
+  // Prevent flash of landing page if user is logged in
+  if (authStatus === 'AUTHENTICATED' && role) {
+    return (
+      <div className="fixed inset-0 bg-background flex flex-col items-center justify-center z-50">
+        <div className="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-3">
+          <Loader2 className="w-6 h-6 text-brand-500 animate-spin" />
+        </div>
+        <p className="text-sm font-semibold text-text-secondary">Opening your workspace...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen bg-background text-text-primary font-sans selection:bg-brand-500/30 overflow-x-hidden">
@@ -757,10 +799,6 @@ export default function EnterpriseLandingPage() {
 
           <div className="pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-text-muted">
             <p>© 2026 FieldPulse AI Inc. All rights reserved.</p>
-            {/* Understated footnote strictly in footer per prompt */}
-            <p className="text-center font-medium">
-              Built for SIH 2026 · Problem Statement SIH26122 · Oil India Limited.
-            </p>
             <p>ISO 27001 &amp; SOC 2 Type II Architecture</p>
           </div>
         </div>

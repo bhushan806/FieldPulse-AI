@@ -15,6 +15,7 @@ class MediaType(str, Enum):
     video = "video"
     voice = "voice"
     qr = "qr"
+    document = "document"
 
 
 class CaptureStatus(str, Enum):

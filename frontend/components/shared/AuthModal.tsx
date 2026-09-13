@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Shield, Building2, BarChart3, HardHat } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { login, getMe } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -19,40 +19,8 @@ const ROLE_ROUTES: Record<string, string> = {
   project_manager: '/pm/dashboard',
   auditor: '/hq/portfolio',
   platform_admin: '/admin/dashboard',
-  site_engineer: '/engineer/capture',
+  site_engineer: '/engineer/home',
 };
-
-const DEMO_PERSONAS = [
-  {
-    role: 'hq_admin',
-    label: 'HQ Admin',
-    name: 'Ankit Verma',
-    email: 'hq@fieldpulse.dev',
-    icon: Building2,
-  },
-  {
-    role: 'project_manager',
-    label: 'Project Manager',
-    name: 'Priya Sharma',
-    email: 'pm@fieldpulse.dev',
-    icon: BarChart3,
-  },
-  {
-    role: 'auditor',
-    label: 'Auditor',
-    name: 'Sonal Mehta',
-    email: 'auditor@fieldpulse.dev',
-    icon: Shield,
-  },
-  {
-    role: 'site_engineer',
-    label: 'Field Engineer',
-    name: 'Ramesh Kumar',
-    email: '+91 98765 43210',
-    icon: HardHat,
-    isOtp: true,
-  },
-];
 
 export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalProps) {
   const router = useRouter();
@@ -61,8 +29,10 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
 
   const [tab, setTab] = useState<'signin' | 'request'>(initialTab);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('Password123!');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [error, setError] = useState('');
 
   // Request Access form state
@@ -71,6 +41,18 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
   const [projectScale, setProjectScale] = useState('$100M+');
   const [requestSuccess, setRequestSuccess] = useState(false);
 
+  // Warm up and prefetch all role dashboards when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      router.prefetch('/hq/portfolio');
+      router.prefetch('/pm/dashboard');
+      router.prefetch('/engineer/home');
+      router.prefetch('/admin/dashboard');
+      router.prefetch('/login-office');
+      router.prefetch('/login-engineer');
+    }
+  }, [isOpen, router]);
+
   if (!isOpen) return null;
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -78,8 +60,8 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
     if (!email.trim()) return;
 
     if (email.startsWith('+') || email.replace(/\D/g, '').length >= 10) {
-      onClose();
-      router.push('/login-engineer');
+      setIsRedirecting(true);
+      router.replace('/login-engineer');
       return;
     }
 
@@ -88,26 +70,44 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
 
     try {
       const auth = await login(email.trim(), password);
+      const role = auth.role;
+      const target = ROLE_ROUTES[role] || '/hq/portfolio';
+
+      // 1. Set auth state immediately in cookies and store
       setAuth({
         accessToken: auth.accessToken || auth.access_token,
         refreshToken: auth.refreshToken || auth.refresh_token || '',
-        role: auth.role,
+        role: role,
       });
 
-      try {
-        const me = await getMe();
+      // 2. Set basic user immediately so app and AI stores initialize synchronously
+      if (auth.user_id) {
+        updateUser({
+          id: auth.user_id,
+          name: auth.name || email.split('@')[0],
+          email: email.trim(),
+          role: role,
+          project_ids: auth.project_ids || [],
+        });
+      }
+
+      // 3. Keep modal in full redirecting state so landing page is never exposed
+      setIsRedirecting(true);
+
+      // 4. Fetch full profile asynchronously in background without blocking navigation
+      getMe().then((me) => {
         if (me) {
           updateUser({
-            id: me.id || me._id || '',
+            id: me.id || me._id || auth.user_id,
             name: me.name || '',
-            email: me.email || '',
-            role: me.role || auth.role,
+            email: me.email || email.trim(),
+            role: me.role || role,
             project_ids: me.project_ids || me.projectIds || [],
           });
         }
-      } catch {
+      }).catch(() => {
         /* profile fetch fallback */
-      }
+      });
 
       addNotification({
         type: 'success',
@@ -115,25 +115,14 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
         message: 'Signed in successfully',
       });
 
-      onClose();
-      const target = ROLE_ROUTES[auth.role] || '/hq/portfolio';
-      router.push(target);
+      // 5. Instant client-side redirect - keep modal mounted during route transition
+      router.replace(target);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Invalid credentials. Please verify your email.');
+      setIsRedirecting(false);
+      setError(err.response?.data?.detail || err.message || 'Invalid credentials. Please verify your email and password.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSelectPersona = (persona: typeof DEMO_PERSONAS[0]) => {
-    if (persona.isOtp) {
-      onClose();
-      router.push('/login-engineer');
-      return;
-    }
-    setEmail(persona.email);
-    setPassword('Password123!');
-    setError('');
   };
 
   const handleRequestAccess = (e: React.FormEvent) => {
@@ -160,6 +149,21 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
 
       {/* Modal Container */}
       <div className="relative w-full max-w-md bg-surface border border-border rounded-3xl shadow-2xl overflow-hidden z-10 animate-fade-in flex flex-col">
+        {/* Instant Redirecting State Overlay */}
+        {isRedirecting && (
+          <div className="absolute inset-0 z-50 bg-surface/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+            <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-3">
+              <Loader2 className="w-7 h-7 text-brand-500 animate-spin" />
+            </div>
+            <h3 className="text-base font-bold text-text-primary mb-1">
+              Opening Workspace...
+            </h3>
+            <p className="text-xs text-text-secondary">
+              Redirecting to your dashboard
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="p-6 border-b border-border bg-surface flex items-center justify-between">
           <FieldPulseLogo size="sm" />
@@ -208,36 +212,6 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
                 </p>
               </div>
 
-              {/* Demo Persona Quick-Fill */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                  Quick Demo Access (Select Persona)
-                </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {DEMO_PERSONAS.map((p) => {
-                    const isSelected = email === p.email;
-                    const Icon = p.icon;
-                    return (
-                      <button
-                        key={p.role}
-                        type="button"
-                        onClick={() => handleSelectPersona(p)}
-                        className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2 ${
-                          isSelected
-                            ? 'bg-brand-500/10 border-brand-500 text-brand-600 dark:text-cyan-400 font-bold'
-                            : 'bg-surface border-border hover:bg-bg-muted text-text-secondary'
-                        }`}
-                      >
-                        <Icon className="w-3.5 h-3.5 flex-shrink-0 text-brand-500" />
-                        <div className="truncate text-xs">
-                          <div className="font-bold truncate">{p.label}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {error && (
                 <div className="p-3 bg-danger-bg text-danger text-xs font-semibold rounded-xl border border-danger/20">
                   {error}
@@ -269,16 +243,22 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
                   <div className="relative">
                     <Lock className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
                       required
-                      className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500 font-medium"
+                      className="w-full bg-surface border border-border rounded-xl pl-9 pr-10 py-2 text-sm text-text-primary outline-none focus:border-brand-500 font-medium"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-                  <p className="text-[11px] text-text-muted mt-1 flex items-center justify-between">
-                    <span>Default demo password: <code className="text-text-secondary bg-bg-muted px-1.5 py-0.5 rounded font-mono">Password123!</code></span>
-                  </p>
                 </div>
 
                 <button
@@ -299,6 +279,34 @@ export function AuthModal({ isOpen, onClose, initialTab = 'signin' }: AuthModalP
                   )}
                 </button>
               </form>
+
+              {/* Dedicated login links */}
+              <div className="pt-3 border-t border-border flex items-center justify-between text-[11px] text-text-muted">
+                <span>Direct portal login:</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      router.push('/login-office');
+                    }}
+                    className="text-brand-600 hover:text-brand-700 font-semibold underline transition-colors"
+                  >
+                    Office Login
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      router.push('/login-engineer');
+                    }}
+                    className="text-brand-600 hover:text-brand-700 font-semibold underline transition-colors"
+                  >
+                    Site Engineer OTP
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

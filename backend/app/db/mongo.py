@@ -73,6 +73,10 @@ def get_documents_collection():
     return get_database()["documents"]
 
 
+def get_ai_threads_collection():
+    return get_database()["ai_threads"]
+
+
 # ---------------------------------------------------------------------------
 # Startup / shutdown
 # ---------------------------------------------------------------------------
@@ -179,5 +183,15 @@ async def create_indexes():
         ("activity_id", ASCENDING),
         ("version", ASCENDING),
     ], unique=True, sparse=True)
+
+    # ai_threads (user-isolated AI conversations)
+    await db["ai_threads"].create_index([
+        ("user_id", ASCENDING),
+        ("updated_at", DESCENDING),
+    ])
+    await db["ai_threads"].create_index([
+        ("user_id", ASCENDING),
+        ("project_id", ASCENDING),
+    ])
 
     print("[DB] All indexes created / verified.")

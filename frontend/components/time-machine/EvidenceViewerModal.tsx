@@ -173,6 +173,26 @@ export function EvidenceViewerModal({
                       <audio src={evidence.mediaUrl} controls className="w-full max-w-md" />
                     </div>
                   )}
+                  {(mediaType === 'document' || (!['photo', 'video', 'voice'].includes(mediaType) && evidence.mediaUrl)) && (
+                    <div className="w-full p-8 flex flex-col items-center justify-center space-y-4 bg-surface text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-500/20 text-blue-500 flex items-center justify-center border border-blue-500/30">
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-text-primary">Attached Field Document</h4>
+                        <p className="text-xs text-text-muted mt-0.5">{evidence.mediaUrl.split('/').pop() || 'Inspection Document'}</p>
+                      </div>
+                      <a 
+                        href={evidence.mediaUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs transition-colors shadow-sm"
+                      >
+                        <span>Open Document in New Tab</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
 

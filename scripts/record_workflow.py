@@ -50,8 +50,10 @@ def record() -> None:
         # 2. Engineer login
         page.goto(f"{BASE}/login-engineer")
         page.wait_for_timeout(800)
-        page.get_by_test_id("engineer-demo-login").click()
+        page.locator('input[type="tel"]').fill("+91 98765 43210")
+        page.get_by_role("button", name="Send OTP").click()
         page.wait_for_timeout(1500)
+        page.locator('input[inputmode="numeric"]').fill("123456")
         page.get_by_test_id("engineer-verify-otp").click()
         page.wait_for_url("**/engineer/**", timeout=20000)
         page.wait_for_timeout(1600)

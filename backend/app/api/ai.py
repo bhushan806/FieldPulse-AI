@@ -63,10 +63,20 @@ def init_clip():
             print(f"[AI] CLIP model unavailable: {e}")
     return clip_available
 
+from typing import Any, List, Optional
+import uuid
+from bson import ObjectId
+from pydantic import Field
+
 from app.core.config import settings
 from app.core.deps import get_current_user
 from app.models.user import UserInDB
-from app.db.mongo import get_notifications_collection, get_projects_collection, get_activities_collection
+from app.db.mongo import (
+    get_notifications_collection,
+    get_projects_collection,
+    get_activities_collection,
+    get_ai_threads_collection,
+)
 from app.websocket.manager import ws_manager
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -75,13 +85,44 @@ class ChatTurn(BaseModel):
     role: str
     content: str
 
+class AIMessageSchema(BaseModel):
+    id: str = Field(default_factory=lambda: f"msg-{uuid.uuid4().hex[:8]}")
+    role: str
+    content: str
+    timestamp: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
+    citations: Optional[List[dict]] = None
+    actions: Optional[List[dict]] = None
+    projectCard: Optional[dict] = None
+
+class AIThreadCreate(BaseModel):
+    title: Optional[str] = "New Analysis"
+    project_id: Optional[str] = None
+    messages: Optional[List[AIMessageSchema]] = []
+
+class AIThreadUpdate(BaseModel):
+    title: Optional[str] = None
+    pinned: Optional[bool] = None
+    messages: Optional[List[AIMessageSchema]] = None
+
+class AIThreadOut(BaseModel):
+    id: str
+    user_id: str
+    project_id: Optional[str] = None
+    title: str
+    pinned: bool = False
+    messages: List[AIMessageSchema] = []
+    created_at: str
+    updated_at: str
+
 class ChatRequest(BaseModel):
     message: str
     project_id: str | None = None
+    thread_id: str | None = None
     history: list[ChatTurn] | None = None
 
 class ChatResponse(BaseModel):
     reply: str
+    thread_id: str | None = None
 
 SYSTEM_PROMPT = """You are FieldPulse AI, a helpful and professional project management assistant for infrastructure and oil & gas projects.
 Answer the user's questions clearly and concisely.
@@ -250,6 +291,159 @@ async def _chat_pollinations(messages: list[dict]) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Individual User-Isolated Conversation Threads
+# ---------------------------------------------------------------------------
+
+@router.get("/threads", response_model=List[AIThreadOut])
+async def list_ai_threads(
+    project_id: Optional[str] = None,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Retrieve all AI conversation threads belonging strictly to the authenticated user."""
+    query: dict[str, Any] = {"user_id": str(current_user.id)}
+    if project_id:
+        query["project_id"] = project_id
+
+    col = get_ai_threads_collection()
+    cursor = col.find(query).sort("updated_at", -1)
+    docs = await cursor.to_list(100)
+    results = []
+    for d in docs:
+        results.append(
+            AIThreadOut(
+                id=str(d["_id"]),
+                user_id=str(d.get("user_id")),
+                project_id=d.get("project_id"),
+                title=d.get("title", "New Analysis"),
+                pinned=d.get("pinned", False),
+                messages=d.get("messages", []),
+                created_at=d.get("created_at", datetime.datetime.utcnow().isoformat()),
+                updated_at=d.get("updated_at", datetime.datetime.utcnow().isoformat()),
+            )
+        )
+    return results
+
+
+@router.post("/threads", response_model=AIThreadOut)
+async def create_ai_thread(
+    body: AIThreadCreate,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Create a new user-isolated AI conversation thread."""
+    now_iso = datetime.datetime.utcnow().isoformat()
+    col = get_ai_threads_collection()
+    new_doc = {
+        "user_id": str(current_user.id),
+        "project_id": body.project_id,
+        "title": body.title or "New Analysis",
+        "pinned": False,
+        "messages": [m.dict() for m in (body.messages or [])],
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    }
+    res = await col.insert_one(new_doc)
+    return AIThreadOut(
+        id=str(res.inserted_id),
+        user_id=str(current_user.id),
+        project_id=body.project_id,
+        title=new_doc["title"],
+        pinned=new_doc["pinned"],
+        messages=body.messages or [],
+        created_at=now_iso,
+        updated_at=now_iso,
+    )
+
+
+@router.get("/threads/{thread_id}", response_model=AIThreadOut)
+async def get_ai_thread(
+    thread_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Get a specific AI thread owned by the authenticated user."""
+    col = get_ai_threads_collection()
+    filter_q: dict[str, Any] = {"user_id": str(current_user.id)}
+    try:
+        filter_q["_id"] = ObjectId(thread_id)
+    except Exception:
+        filter_q["_id"] = thread_id
+
+    doc = await col.find_one(filter_q)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Conversation thread not found or access denied.")
+
+    return AIThreadOut(
+        id=str(doc["_id"]),
+        user_id=str(doc.get("user_id")),
+        project_id=doc.get("project_id"),
+        title=doc.get("title", "New Analysis"),
+        pinned=doc.get("pinned", False),
+        messages=doc.get("messages", []),
+        created_at=doc.get("created_at", datetime.datetime.utcnow().isoformat()),
+        updated_at=doc.get("updated_at", datetime.datetime.utcnow().isoformat()),
+    )
+
+
+@router.put("/threads/{thread_id}", response_model=AIThreadOut)
+async def update_ai_thread(
+    thread_id: str,
+    body: AIThreadUpdate,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Update title, pinned status, or messages of a user's thread."""
+    col = get_ai_threads_collection()
+    filter_q: dict[str, Any] = {"user_id": str(current_user.id)}
+    try:
+        filter_q["_id"] = ObjectId(thread_id)
+    except Exception:
+        filter_q["_id"] = thread_id
+
+    existing = await col.find_one(filter_q)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Conversation thread not found or access denied.")
+
+    update_fields: dict[str, Any] = {"updated_at": datetime.datetime.utcnow().isoformat()}
+    if body.title is not None:
+        update_fields["title"] = body.title
+    if body.pinned is not None:
+        update_fields["pinned"] = body.pinned
+    if body.messages is not None:
+        update_fields["messages"] = [m.dict() for m in body.messages]
+
+    await col.update_one(filter_q, {"$set": update_fields})
+    updated = await col.find_one(filter_q)
+
+    return AIThreadOut(
+        id=str(updated["_id"]),
+        user_id=str(updated.get("user_id")),
+        project_id=updated.get("project_id"),
+        title=updated.get("title", "New Analysis"),
+        pinned=updated.get("pinned", False),
+        messages=updated.get("messages", []),
+        created_at=updated.get("created_at", datetime.datetime.utcnow().isoformat()),
+        updated_at=updated.get("updated_at", datetime.datetime.utcnow().isoformat()),
+    )
+
+
+@router.delete("/threads/{thread_id}")
+async def delete_ai_thread(
+    thread_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Delete an AI thread owned by the authenticated user."""
+    col = get_ai_threads_collection()
+    filter_q: dict[str, Any] = {"user_id": str(current_user.id)}
+    try:
+        filter_q["_id"] = ObjectId(thread_id)
+    except Exception:
+        filter_q["_id"] = thread_id
+
+    res = await col.delete_one(filter_q)
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation thread not found or access denied.")
+    return {"status": "deleted", "thread_id": thread_id}
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_ai(
     body: ChatRequest,
@@ -261,8 +455,20 @@ async def chat_with_ai(
     # 1. Fetch live project telemetry
     project_summary, structured_data = await _get_project_context(body.project_id)
 
-    # 2. Build prompt messages enriched with telemetry
-    system_prompt = SYSTEM_PROMPT
+    # 2. Build role-tailored prompt messages enriched with telemetry
+    role_str = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if role_str == "site_engineer":
+        role_instruction = f"User role: Site Engineer ({current_user.name}). Prioritize field observations, capture validation, equipment/material checks, safety standards, and daily logs."
+    elif role_str == "project_manager":
+        role_instruction = f"User role: Project Manager ({current_user.name}). Prioritize schedule WBS, critical-path delays, contractor performance, capture review approvals, and milestone forecasting."
+    elif role_str == "hq_admin":
+        role_instruction = f"User role: HQ Executive ({current_user.name}). Prioritize cross-project portfolio health, baseline S-Curves, budget variance, and executive briefing."
+    elif role_str == "auditor":
+        role_instruction = f"User role: Compliance Auditor ({current_user.name}). Prioritize unalterable audit trails, GPS verification, cryptographic SHA-256 evidence integrity, and compliance logs."
+    else:
+        role_instruction = f"User: {current_user.name} ({role_str})."
+
+    system_prompt = f"{SYSTEM_PROMPT}\n{role_instruction}"
     if project_summary:
         system_prompt += f"\n\nLive Project Telemetry:\n{project_summary}"
 
@@ -273,24 +479,87 @@ async def chat_with_ai(
             messages.append({"role": role, "content": turn.content})
     messages.append({"role": "user", "content": body.message})
 
+    reply = None
     # 3. Try Hugging Face if configured and credits available
     try:
         reply = await _chat_huggingface(messages)
-        if reply:
-            return ChatResponse(reply=reply)
     except Exception as exc:
         print(f"[AI Chat] HF attempt error: {exc}")
 
     # 4. Try fast fallback provider
-    try:
-        reply = await _chat_pollinations(messages)
-        if reply:
-            return ChatResponse(reply=reply)
-    except Exception as exc:
-        print(f"[AI Chat] Pollinations attempt error: {exc}")
+    if not reply:
+        try:
+            reply = await _chat_pollinations(messages)
+        except Exception as exc:
+            print(f"[AI Chat] Pollinations attempt error: {exc}")
 
     # 5. FieldPulse Project Intelligence Engine fallback (grounded in MongoDB)
-    return ChatResponse(reply=_domain_project_reply(body.message, project_summary, structured_data))
+    if not reply:
+        reply = _domain_project_reply(body.message, project_summary, structured_data)
+
+    # 6. Persist message turn into the user's thread in MongoDB
+    thread_id = body.thread_id
+    col = get_ai_threads_collection()
+    user_msg_doc = {
+        "id": f"msg-{uuid.uuid4().hex[:8]}",
+        "role": "user",
+        "content": body.message,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+    }
+    asst_msg_doc = {
+        "id": f"msg-{uuid.uuid4().hex[:8]}",
+        "role": "assistant",
+        "content": reply,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+    }
+
+    try:
+        if thread_id:
+            filter_q = {"user_id": str(current_user.id)}
+            try:
+                filter_q["_id"] = ObjectId(thread_id)
+            except Exception:
+                filter_q["_id"] = thread_id
+
+            thread_doc = await col.find_one(filter_q)
+            if thread_doc:
+                await col.update_one(
+                    filter_q,
+                    {
+                        "$push": {"messages": {"$each": [user_msg_doc, asst_msg_doc]}},
+                        "$set": {"updated_at": datetime.datetime.utcnow().isoformat()},
+                    }
+                )
+            else:
+                new_title = body.message[:42] + ("..." if len(body.message) > 42 else "")
+                now_iso = datetime.datetime.utcnow().isoformat()
+                ins = await col.insert_one({
+                    "user_id": str(current_user.id),
+                    "project_id": body.project_id,
+                    "title": new_title,
+                    "pinned": False,
+                    "messages": [user_msg_doc, asst_msg_doc],
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                })
+                thread_id = str(ins.inserted_id)
+        else:
+            new_title = body.message[:42] + ("..." if len(body.message) > 42 else "")
+            now_iso = datetime.datetime.utcnow().isoformat()
+            ins = await col.insert_one({
+                "user_id": str(current_user.id),
+                "project_id": body.project_id,
+                "title": new_title,
+                "pinned": False,
+                "messages": [user_msg_doc, asst_msg_doc],
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            })
+            thread_id = str(ins.inserted_id)
+    except Exception as db_err:
+        print(f"[AI Chat] Failed to persist thread to MongoDB: {db_err}")
+
+    return ChatResponse(reply=reply, thread_id=thread_id)
 
 @router.post("/analyze-media")
 async def analyze_media(

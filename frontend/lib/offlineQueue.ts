@@ -79,8 +79,13 @@ export const offlineService = {
 
     for (const capture of queue) {
       try {
+        const ext = capture.mediaType === 'photo' ? 'jpg' :
+                    capture.mediaType === 'video' ? 'mp4' :
+                    capture.mediaType === 'voice' ? 'mp3' :
+                    capture.mediaType === 'document' ? 'pdf' : 'bin';
+        const filename = (capture as any).filename || `capture_${Date.now()}.${ext}`;
         const formData = new FormData();
-        formData.append('file', capture.mediaBlob, `capture_${Date.now()}.jpg`);
+        formData.append('file', capture.mediaBlob, filename);
         // These names deliberately mirror the FastAPI multipart contract.
         formData.append('media_type', capture.mediaType);
         formData.append('project_id', capture.projectId);

@@ -12,10 +12,19 @@ import { AIWorkspace } from '../ai/AIWorkspace';
 export function AIAssistant() {
   const pathname = usePathname();
   const { user, accessToken, authStatus } = useAuthStore();
-  const { mode, openPanel, togglePanel, openPalette, close, setContext } = useAIStore();
+  const { mode, openPanel, togglePanel, openPalette, close, setContext, initForUser, resetUser } = useAIStore();
 
   const isAuthenticated = authStatus === 'AUTHENTICATED' && !!accessToken;
   const isEngineer = pathname?.startsWith('/engineer');
+
+  // Sync user lifecycle and isolated conversation store
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      initForUser(user.id, user.role, user.name);
+    } else if (!isAuthenticated) {
+      resetUser();
+    }
+  }, [isAuthenticated, user?.id, user?.role, user?.name, initForUser, resetUser]);
 
   // Sync current page entity into AI context
   useEffect(() => {

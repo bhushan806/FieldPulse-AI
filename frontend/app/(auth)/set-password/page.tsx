@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { useAuthStore } from "@/store/authStore";
@@ -11,6 +11,8 @@ const ROLE_ROUTES: Record<string, string> = {
   project_manager: "/pm/dashboard",
   hq_admin: "/hq/portfolio",
   auditor: "/hq/portfolio",
+  platform_admin: "/admin/dashboard",
+  site_engineer: "/engineer/home",
 };
 
 function SetPasswordForm() {
@@ -23,6 +25,14 @@ function SetPasswordForm() {
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+
+  // Prefetch dashboard routes on mount
+  useEffect(() => {
+    router.prefetch("/pm/dashboard");
+    router.prefetch("/hq/portfolio");
+    router.prefetch("/admin/dashboard");
+    router.prefetch("/engineer/home");
+  }, [router]);
 
   const passwordStrength = password.length === 0
     ? null
@@ -54,17 +64,28 @@ function SetPasswordForm() {
 
       // Persist auth state — axios wraps response body in .data
       setAuth({
-        accessToken: res.data.accessToken,
-        refreshToken: res.data.refreshToken ?? "",
+        accessToken: res.data.accessToken || res.data.access_token,
+        refreshToken: res.data.refreshToken || res.data.refresh_token || "",
         role: res.data.role,
       });
 
-      // Fetch user data right after password set
-      const { getMe } = await import("@/lib/api/auth");
-      const me = await getMe();
-      updateUser(me);
+      if (res.data.user_id) {
+        updateUser({
+          id: res.data.user_id,
+          name: res.data.name || "User",
+          role: res.data.role,
+          project_ids: res.data.project_ids || [],
+        });
+      }
 
-      const dest = ROLE_ROUTES[res.data.role] ?? "/";
+      // Background profile fetch
+      import("@/lib/api/auth").then(({ getMe }) => {
+        getMe().then((me) => {
+          if (me) updateUser(me);
+        }).catch(() => {});
+      }).catch(() => {});
+
+      const dest = ROLE_ROUTES[res.data.role] ?? "/hq/portfolio";
       router.replace(dest);
     } catch (err: any) {
       const detail =

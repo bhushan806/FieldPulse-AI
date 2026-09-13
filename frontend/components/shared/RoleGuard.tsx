@@ -35,10 +35,18 @@ export function RoleGuard({
 
     // AUTHENTICATED but wrong role (platform_admin bypasses this check)
     if (authStatus === 'AUTHENTICATED' && role && role !== 'platform_admin' && !allowedRoles.includes(role)) {
+      const dashboardPaths: Record<string, string> = {
+        site_engineer: '/engineer/home',
+        project_manager: '/pm/dashboard',
+        hq_admin: '/hq/portfolio',
+        auditor: '/hq/portfolio',
+        platform_admin: '/admin/dashboard',
+      };
+      const dest = dashboardPaths[role] || '/';
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[AUTH] RoleGuard: Role "${role}" not in [${allowedRoles.join(', ')}] → redirecting to /`);
+        console.log(`[AUTH] RoleGuard: Role "${role}" not in [${allowedRoles.join(', ')}] → redirecting to ${dest}`);
       }
-      router.replace('/');
+      router.replace(dest);
     }
   }, [authStatus, role, allowedRoles, router]);
 
