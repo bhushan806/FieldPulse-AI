@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # ── MongoDB (Local persistent database container) ─────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: fieldpulse_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - fieldpulse_network
+
+  # ── Backend (FastAPI + AI Engine) ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fieldpulse_backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/FieldPulse-Ai}
+      - MONGO_DB_NAME=${MONGO_DB_NAME:-FieldPulse-Ai}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super_secret_dev_key_replace_me_in_production}
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_EXPIRE_MINUTES=60
+      - OTP_PROVIDER=mock
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+    volumes:
+      - ./backend/uploads:/app/uploads
+    networks:
+      - fieldpulse_network
+
+  # ── Frontend (Next.js 14 App Router) ─────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fieldpulse_frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - fieldpulse_network
+
+networks:
+  fieldpulse_network:
+    driver: bridge
+
+volumes:
+  mongo_data:

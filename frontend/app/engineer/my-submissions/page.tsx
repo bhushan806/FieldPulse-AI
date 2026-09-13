@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Camera, Search, Filter, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Camera, Search, Filter, CheckCircle2, Clock, XCircle, FileText } from 'lucide-react';
 import { Capture } from '@/types/api';
 import apiClient from '@/lib/apiClient';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
@@ -95,7 +95,12 @@ export default function MySubmissions() {
             <div key={sub.id} className="card flex gap-4 p-3 hover:border-border-strong transition-colors cursor-pointer group">
               {/* Thumbnail */}
               <div className="w-20 h-20 rounded-lg overflow-hidden bg-bg-muted shrink-0 relative">
-                {sub.mediaUrl ? (
+                {sub.mediaType === 'document' || sub.mediaUrl?.toLowerCase().endsWith('.pdf') ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-blue-500/10 text-blue-500">
+                    <FileText className="w-8 h-8 mb-1" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider">Document</span>
+                  </div>
+                ) : sub.mediaUrl ? (
                   <img src={sub.mediaUrl} alt="Capture" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

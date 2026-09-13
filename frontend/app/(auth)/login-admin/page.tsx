@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +8,7 @@ import { z } from "zod";
 import { login, getMe } from "@/lib/api/auth";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
-import { Mail, Lock, Loader2, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowLeft, ShieldAlert, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
 const schema = z.object({
@@ -22,6 +22,12 @@ export default function LoginAdminPage() {
   const { setAuth, updateUser } = useAuthStore();
   const { addNotification } = useUIStore();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Prefetch admin dashboard on mount
+  useEffect(() => {
+    router.prefetch("/admin/dashboard");
+  }, [router]);
 
   const {
     register,
@@ -41,12 +47,23 @@ export default function LoginAdminPage() {
         refreshToken: auth.refreshToken ?? "",
         role: auth.role,
       });
-      try {
-        const me = await getMe();
-        updateUser(me);
-      } catch {
-        /* profile fetch optional */
+
+      if (auth.user_id) {
+        updateUser({
+          id: auth.user_id,
+          name: auth.name || "Platform Admin",
+          email: data.email,
+          role: auth.role,
+          project_ids: auth.project_ids || [],
+        });
       }
+
+      getMe()
+        .then((me) => {
+          if (me) updateUser(me);
+        })
+        .catch(() => {});
+
       router.replace("/admin/dashboard");
     } catch (e: any) {
       const detail = e?.response?.data?.detail ?? e?.message ?? "";
@@ -111,10 +128,18 @@ export default function LoginAdminPage() {
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                 <input
                   {...register("password")}
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  className="w-full bg-transparent border border-border hover:border-border-strong focus:border-danger rounded-xl pl-10 pr-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-danger/20 transition-all text-sm"
+                  className="w-full bg-transparent border border-border hover:border-border-strong focus:border-danger rounded-xl pl-10 pr-11 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-danger/20 transition-all text-sm"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
               {errors.password && (
                 <p className="text-danger text-xs mt-1.5">{errors.password.message}</p>

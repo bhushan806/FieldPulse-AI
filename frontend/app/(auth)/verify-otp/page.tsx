@@ -19,9 +19,10 @@ export default function VerifyOTP() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
+    router.prefetch('/engineer/home');
     const storedPhone = sessionStorage.getItem('otp-phone');
     if (!storedPhone) {
-      router.replace('/login/engineer');
+      router.replace('/login-engineer');
     } else {
       setPhone(storedPhone);
     }
@@ -88,20 +89,32 @@ export default function VerifyOTP() {
       
       setAuth({ 
         accessToken: authRes.data.access_token || authRes.data.accessToken, 
-        refreshToken: authRes.data.refresh_token || authRes.data.refreshToken 
+        refreshToken: authRes.data.refresh_token || authRes.data.refreshToken,
+        role: authRes.data.role || 'site_engineer',
       });
       
-      // 2. Fetch User Profile
-      const meRes = await apiClient.get(API_ENDPOINTS.auth.me);
-      updateUser(meRes.data);
+      if (authRes.data.user_id) {
+        updateUser({
+          id: authRes.data.user_id,
+          name: authRes.data.name || 'Site Engineer',
+          phone: phone,
+          role: authRes.data.role || 'site_engineer',
+          project_ids: authRes.data.project_ids || [],
+        });
+      }
+
+      // Background profile fetch without delaying navigation
+      apiClient.get(API_ENDPOINTS.auth.me).then((meRes) => {
+        if (meRes?.data) updateUser(meRes.data);
+      }).catch(() => {});
       
       addNotification({ type: 'success', message: 'Verification successful!' });
       
       // Clean up
       sessionStorage.removeItem('otp-phone');
       
-      // 3. Redirect to Engineer Dashboard
-      router.push('/engineer/home');
+      // 2. Instant Redirect to Engineer Dashboard
+      router.replace('/engineer/home');
       
     } catch (error: any) {
       addNotification({ 

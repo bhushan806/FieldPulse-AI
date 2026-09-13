@@ -97,10 +97,14 @@ async def submit_capture(
     resolved_lat = gps_lat if gps_lat is not None else lat
     resolved_lng = gps_lng if gps_lng is not None else lng
 
-    # Build GPS dict
+    # Build GPS dict with project location fallback
     gps = None
-    if resolved_lat is not None and resolved_lng is not None:
-        gps = {"type": "Point", "coordinates": [resolved_lng, resolved_lat]}
+    if resolved_lat is not None and resolved_lng is not None and not (float(resolved_lat) == 0.0 and float(resolved_lng) == 0.0):
+        gps = {"type": "Point", "coordinates": [float(resolved_lng), float(resolved_lat)]}
+    elif project and project.get("location"):
+        gps = project["location"]
+    else:
+        gps = {"type": "Point", "coordinates": [94.92, 27.47]}
 
     # --- Upload media to Cloudinary ---
     media_url = ""
@@ -108,9 +112,21 @@ async def submit_capture(
     audio_bytes: Optional[bytes] = None
     image_hash: Optional[str] = None
     processing_notes: list[str] = []
+    transcribed_text: Optional[str] = None
 
     # ── Upload validation ──────────────────────────────────────────────────
-    ALLOWED_MIME_PREFIXES = ("image/", "video/", "audio/", "application/pdf", "application/octet-stream")
+    ALLOWED_MIME_PREFIXES = (
+        "image/",
+        "video/",
+        "audio/",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument",
+        "application/vnd.ms-excel",
+        "text/plain",
+        "text/csv",
+        "application/octet-stream",
+    )
     MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
     if file:
@@ -128,7 +144,7 @@ async def submit_capture(
         if not any(content_type.startswith(prefix) for prefix in ALLOWED_MIME_PREFIXES):
             raise HTTPException(
                 status_code=415,
-                detail=f"Unsupported file type '{content_type}'. Allowed: images, videos, audio, PDF.",
+                detail=f"Unsupported file type '{content_type}'. Allowed: images, videos, audio, PDF, Word, Excel, text.",
             )
 
         ext = file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "bin"
@@ -146,9 +162,31 @@ async def submit_capture(
                 processing_notes.append(f"Could not compute duplicate fingerprint: {exc}")
         elif media_type == MediaType.voice:
             audio_bytes = raw_bytes
+        elif media_type == MediaType.document:
+            try:
+                doc_filename = (file.filename or "").lower()
+                if doc_filename.endswith(".pdf"):
+                    try:
+                        import PyPDF2
+                        import io
+                        pdf_reader = PyPDF2.PdfReader(io.BytesIO(raw_bytes))
+                        pdf_texts = []
+                        for page in pdf_reader.pages[:10]:
+                            txt = page.extract_text()
+                            if txt:
+                                pdf_texts.append(txt)
+                        if pdf_texts:
+                            doc_text = "\n".join(pdf_texts).strip()
+                            if doc_text:
+                                transcribed_text = doc_text[:5000]
+                    except Exception as pdf_err:
+                        processing_notes.append(f"PDF text extraction note: {pdf_err}")
+                elif doc_filename.endswith((".txt", ".csv")):
+                    transcribed_text = raw_bytes.decode("utf-8", errors="ignore")[:5000]
+            except Exception as doc_err:
+                processing_notes.append(f"Document processing note: {doc_err}")
 
     # --- AI pipeline ---
-    transcribed_text: Optional[str] = None
     extracted_entities = None
     cv_classification = None
     matched_id = None
@@ -160,6 +198,11 @@ async def submit_capture(
         if audio_bytes:
             transcribed_text = await transcribe_audio(audio_bytes)
             extracted_entities = await extract_entities(transcribed_text)
+        elif transcribed_text and not extracted_entities:
+            try:
+                extracted_entities = await extract_entities(transcribed_text)
+            except Exception as ent_err:
+                processing_notes.append(f"Entity extraction note: {ent_err}")
 
         if image_bytes:
             try:
@@ -272,15 +315,23 @@ async def submit_capture(
             elif media_type == MediaType.qr:
                 ev_type = EventType.QR_SCAN
                 ev_desc = f"QR scan verified: {qr_code_value}"
+            elif media_type == MediaType.document:
+                ev_type = EventType.WORKER_UPDATE
+                doc_name = file.filename if file and file.filename else "Site document"
+                ev_desc = f"Site document uploaded: {doc_name}"
             else:
                 ev_type = EventType.WORKER_UPDATE
                 ev_desc = "Worker field submission"
+
+            source_type = "PHOTO_AI" if media_type == MediaType.photo else \
+                          "VOICE_WHISPER" if media_type == MediaType.voice else \
+                          "DOCUMENT_AI" if media_type == MediaType.document else "FIELD_CAPTURE"
 
             await activity_event_service.create_event(
                 project_id=project_id,
                 activity_id=target_act_id,
                 event_type=ev_type,
-                source_type="PHOTO_AI" if media_type == MediaType.photo else ("VOICE_WHISPER" if media_type == MediaType.voice else "FIELD_CAPTURE"),
+                source_type=source_type,
                 source_id=capture_id,
                 actor_id=str(current_user.id),
                 description=ev_desc,

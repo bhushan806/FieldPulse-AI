@@ -57,9 +57,20 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // NOTE: Intentionally NOT redirecting authenticated users away from '/' or auth pages.
-  // The landing page is always accessible. Role selection and login pages are public.
-  // The client-side (login pages) will redirect after successful auth via router.replace().
+  // If already authenticated and visiting landing page or login screens, redirect immediately to role dashboard
+  if (token && role && (path === '/' || path.startsWith('/login'))) {
+    const dashboardPaths: Record<string, string> = {
+      site_engineer: '/engineer/home',
+      project_manager: '/pm/dashboard',
+      hq_admin: '/hq/portfolio',
+      auditor: '/hq/portfolio',
+      platform_admin: '/admin/dashboard',
+    };
+    const dest = dashboardPaths[role];
+    if (dest) {
+      return NextResponse.redirect(new URL(dest, request.url));
+    }
+  }
 
   return NextResponse.next();
 }

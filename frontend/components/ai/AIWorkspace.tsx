@@ -24,7 +24,6 @@ import {
   FileText,
   AlertTriangle,
   TrendingUp,
-  Cpu,
   ThumbsUp,
   ThumbsDown,
   Clock,
@@ -56,8 +55,6 @@ export function AIWorkspace() {
     isStreaming,
     setStreaming,
     context,
-    selectedModel,
-    setSelectedModel,
   } = useAIStore();
 
   const [input, setInput] = useState('');
@@ -146,8 +143,19 @@ export function AIWorkspace() {
       const res = await apiClient.post('/api/ai/chat', {
         message: query,
         project_id: context?.entityId || null,
+        thread_id: activeThreadId || null,
         history,
       });
+
+      if (res.data?.thread_id && res.data.thread_id !== activeThreadId) {
+        const backendThreadId = res.data.thread_id;
+        useAIStore.setState((state) => ({
+          threads: state.threads.map((t) =>
+            t.id === activeThreadId ? { ...t, id: backendThreadId } : t
+          ),
+          activeThreadId: backendThreadId,
+        }));
+      }
 
       const reply = res.data?.reply?.trim() || 'Analysis completed.';
 
@@ -256,38 +264,158 @@ export function AIWorkspace() {
     setTimeout(() => setCopiedId(null), 1800);
   };
 
-  const PROMPT_STARTERS = [
-    {
-      title: 'Analyze Sector 4 Delay',
-      desc: 'Identify critical path bottlenecks and root causes',
-      prompt: 'Analyze the delay causes in Sector 4 Pipeline and recommend schedule recovery actions.',
+  const userRole = user?.role || 'site_engineer';
+
+  const roleLabels: Record<string, { title: string; subtitle: string }> = {
+    site_engineer: {
+      title: 'Site Intelligence Workspace',
+      subtitle: 'Audit daily field logs, verify checklists, detect anomalies, and track on-site execution.',
     },
-    {
-      title: 'Draft Executive Briefing',
-      desc: 'Summary of milestones, budget, and contractor velocity',
-      prompt: 'Draft an executive briefing on portfolio-wide project health for the board.',
+    project_manager: {
+      title: 'Project Management Workspace',
+      subtitle: 'Monitor critical path delays, audit the review queue, forecast slippage, and review productivity.',
     },
-    {
-      title: 'Audit Field Captures',
-      desc: 'Highlight unverified photos, missing tags, or low scores',
-      prompt: 'Audit all field captures submitted this week that have confidence scores below 80%.',
+    hq_admin: {
+      title: 'Executive Portfolio Command',
+      subtitle: 'Compare multi-project S-Curves, review executive briefs, and assess portfolio risk & budget variance.',
     },
-    {
-      title: 'Compare Baseline S-Curves',
-      desc: 'Actual cumulative progress vs planned completion dates',
-      prompt: 'Compare actual cumulative completion against the baseline S-Curve across all projects.',
+    platform_admin: {
+      title: 'Enterprise Portfolio Command',
+      subtitle: 'Compare multi-project S-Curves, review executive briefs, and assess portfolio risk & budget variance.',
     },
-    {
-      title: 'Contractor Productivity',
-      desc: 'Review daily output rates and subcontractor milestones',
-      prompt: 'Evaluate contractor output rates and identify teams at risk of missing deadlines.',
+    auditor: {
+      title: 'Compliance & Verification Audit',
+      subtitle: 'Audit unverified captures, verify cryptographic SHA-256 evidence hashes, and check geo-fence boundaries.',
     },
-    {
-      title: 'Safety & Site Anomalies',
-      desc: 'Flag unusual weather pauses, GPS shifts, or halts',
-      prompt: 'List all safety flags, weather downtime, or site anomalies recorded in the past 7 days.',
-    },
-  ];
+  };
+
+  const currentRoleMeta = roleLabels[userRole] || {
+    title: 'Project Intelligence Workspace',
+    subtitle: 'What would you like to analyze across your infrastructure projects today?',
+  };
+
+  const getPromptStarters = (role?: string) => {
+    switch (role) {
+      case 'site_engineer':
+        return [
+          {
+            title: 'Daily Capture Logs',
+            desc: 'Review submitted photos, videos, and daily site activity logs',
+            prompt: 'Audit today’s daily field capture submissions and identify any missing activity logs.',
+          },
+          {
+            title: 'Checklist Verification',
+            desc: 'Verify required inspection checklists before supervisor sign-off',
+            prompt: 'Verify inspection checklists and required quality criteria for ongoing site activities.',
+          },
+          {
+            title: 'Safety & Site Anomalies',
+            desc: 'Flag unusual weather pauses, GPS shifts, or work stoppages',
+            prompt: 'List all safety flags, weather downtime, or site anomalies recorded in the past 7 days.',
+          },
+          {
+            title: 'Activity Progress Rate',
+            desc: 'Compare daily actual progress against scheduled site targets',
+            prompt: 'Assess actual daily physical progress against our scheduled target for this work package.',
+          },
+        ];
+      case 'project_manager':
+        return [
+          {
+            title: 'Critical Path Delay Root Cause',
+            desc: 'Identify critical path bottlenecks and recommended recovery actions',
+            prompt: 'Analyze critical path activities currently behind schedule and recommend schedule recovery actions.',
+          },
+          {
+            title: 'Review Queue Audit',
+            desc: 'Summarize pending submissions awaiting supervisor approval',
+            prompt: 'Summarize all pending field captures in the review queue awaiting supervisor approval.',
+          },
+          {
+            title: 'Milestone Slippage Forecast',
+            desc: 'Predict delivery variance using historical contractor velocity',
+            prompt: 'Forecast milestone completion dates and flag any expected slippage against baseline.',
+          },
+          {
+            title: 'Contractor Productivity',
+            desc: 'Evaluate daily output rates and subcontractor milestones',
+            prompt: 'Evaluate contractor output rates and identify teams at risk of missing deadlines.',
+          },
+        ];
+      case 'hq_admin':
+      case 'platform_admin':
+        return [
+          {
+            title: 'Portfolio S-Curve Comparison',
+            desc: 'Compare actual cumulative progress vs planned baseline S-Curves',
+            prompt: 'Compare actual cumulative completion against the baseline S-Curve across all portfolio projects.',
+          },
+          {
+            title: 'Executive Progress Briefing',
+            desc: 'High-level executive summary of portfolio health and delivery risks',
+            prompt: 'Draft an executive briefing summarizing portfolio health, critical path delays, and delivery risks.',
+          },
+          {
+            title: 'Budget & Variance Risks',
+            desc: 'Detect projects with significant schedule and budget overrun variance',
+            prompt: 'Identify projects with severe schedule variance and potential budget overrun risks.',
+          },
+          {
+            title: 'Resource Allocation Velocity',
+            desc: 'Analyze contractor distribution and equipment utilization',
+            prompt: 'Assess contractor distribution, equipment utilization, and bottlenecks across project packages.',
+          },
+        ];
+      case 'auditor':
+        return [
+          {
+            title: 'Unverified Capture Audit',
+            desc: 'Audit field captures with low confidence scores or visual anomalies',
+            prompt: 'Audit all field captures with AI confidence scores below 80% or flagged anomalies.',
+          },
+          {
+            title: 'Tamper Hash Verification',
+            desc: 'Verify cryptographic SHA-256 evidence hashes and chain of custody',
+            prompt: 'Verify the cryptographic SHA-256 tamper-proof hash ledger for recent capture submissions.',
+          },
+          {
+            title: 'Geo-Fence Compliance',
+            desc: 'Detect captures submitted outside authorized project geo-coordinates',
+            prompt: 'List all field submissions flagged for GPS location discrepancy or out-of-boundary capture.',
+          },
+          {
+            title: 'Immutable Audit Trail',
+            desc: 'Export compliance audit log of all supervisor approvals and edits',
+            prompt: 'Generate an unalterable compliance audit trail report for all supervisor approvals this month.',
+          },
+        ];
+      default:
+        return [
+          {
+            title: 'Project Status Overview',
+            desc: 'Review live telemetry, progress benchmarks, and status',
+            prompt: 'Provide a comprehensive overview of current project progress and active delays.',
+          },
+          {
+            title: 'Schedule Slippage Analysis',
+            desc: 'Identify critical path risks and forecast completion dates',
+            prompt: 'Analyze all activities on the critical path and list potential slippage risks.',
+          },
+          {
+            title: 'Audit Field Submissions',
+            desc: 'Audit recent site captures and evidence logs',
+            prompt: 'Audit recent field captures submitted for verification across active packages.',
+          },
+          {
+            title: 'Safety & Site Alerts',
+            desc: 'Flag safety events, weather delays, or operational alerts',
+            prompt: 'List all open alerts, safety incidents, and schedule risks recorded in the system.',
+          },
+        ];
+    }
+  };
+
+  const PROMPT_STARTERS = getPromptStarters(user?.role);
 
   return (
     <div
@@ -304,20 +432,11 @@ export function AIWorkspace() {
             <span className="font-black text-sm text-text-primary tracking-tight">
               FieldPulse <span className="text-brand-600 dark:text-cyan-400">Intelligence</span>
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-500/10 text-brand-600 dark:text-cyan-400 px-2 py-0.5 rounded-full border border-brand-500/20">
-              Core v2.4
-            </span>
           </div>
         </div>
 
-        {/* Model & Window Controls */}
+        {/* Window Controls */}
         <div className="flex items-center gap-2">
-          {/* Model Selector Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-bg-muted border border-border text-xs text-text-secondary font-semibold">
-            <Cpu className="w-3.5 h-3.5 text-brand-500" />
-            <span>{selectedModel}</span>
-          </div>
-
           {/* Mode Switcher */}
           <button
             type="button"
@@ -459,8 +578,11 @@ export function AIWorkspace() {
                   <h2 className="text-2xl font-black text-text-primary tracking-tight">
                     Good evening, {user?.name?.split(' ')[0] || 'Engineer'}.
                   </h2>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-brand-600 dark:text-cyan-400 mt-1">
+                    {currentRoleMeta.title}
+                  </p>
                   <p className="text-sm text-text-secondary max-w-md mt-1.5">
-                    What would you like to analyze across your infrastructure projects today?
+                    {currentRoleMeta.subtitle}
                   </p>
                 </div>
 

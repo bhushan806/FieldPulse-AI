@@ -16,7 +16,12 @@ import {
   Volume2, 
   CheckCircle2, 
   AlertTriangle,
-  Loader2
+  Loader2,
+  FileText,
+  Upload,
+  FileUp,
+  ExternalLink,
+  MapPin
 } from 'lucide-react';
 import { useCaptureStore } from '@/store/captureStore';
 import { useUIStore } from '@/store/uiStore';
@@ -31,8 +36,12 @@ export default function CaptureScreen() {
   const { selectedProjectId } = useAuthStore();
   const { addToQueue, isOffline } = useCaptureStore();
   
-  const [mode, setMode] = useState<'photo' | 'video' | 'voice' | 'qr'>('photo');
+  const [mode, setMode] = useState<'photo' | 'video' | 'voice' | 'qr' | 'document'>('photo');
   const [stream, setStream] = useState<MediaStream | null>(null);
+
+  // GPS State (Auto pre-fetched on mount)
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<'acquiring' | 'ready' | 'fallback'>('acquiring');
   
   // Captured Results
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -40,6 +49,55 @@ export default function CaptureScreen() {
   const [capturedAudioUrl, setCapturedAudioUrl] = useState<string | null>(null);
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
   const [scannedQrCode, setScannedQrCode] = useState<string | null>(null);
+  const [capturedDocument, setCapturedDocument] = useState<{
+    name: string;
+    size: number;
+    type: string;
+    url?: string;
+  } | null>(null);
+
+  // Auto pre-fetch GPS immediately on screen load
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsCoords({ lat: 27.47, lng: 94.92 });
+      setGpsStatus('fallback');
+      return;
+    }
+
+    // Fast cached or network location
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsCoords({
+          lat: Number(pos.coords.latitude.toFixed(6)),
+          lng: Number(pos.coords.longitude.toFixed(6)),
+        });
+        setGpsStatus('ready');
+      },
+      () => {
+        // Fallback to project site coordinates silently
+        setGpsCoords({ lat: 27.47, lng: 94.92 });
+        setGpsStatus('fallback');
+      },
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+    );
+
+    // Background watcher to refine if GPS sensor is active
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsCoords({
+          lat: Number(pos.coords.latitude.toFixed(6)),
+          lng: Number(pos.coords.longitude.toFixed(6)),
+        });
+        setGpsStatus('ready');
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
 
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -57,6 +115,7 @@ export default function CaptureScreen() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const documentRef = useRef<HTMLInputElement>(null);
 
   // Stop active media streams
   const stopAllStreams = useCallback(() => {
@@ -146,6 +205,7 @@ export default function CaptureScreen() {
     setCapturedAudioUrl(null);
     setCapturedBlob(null);
     setScannedQrCode(null);
+    setCapturedDocument(null);
     setIsRecording(false);
     setRecordingSeconds(0);
 
@@ -157,6 +217,8 @@ export default function CaptureScreen() {
       startAudioOnly();
     } else if (mode === 'qr') {
       startQrScanner();
+    } else if (mode === 'document') {
+      stopAllStreams();
     }
 
     return () => {
@@ -175,15 +237,18 @@ export default function CaptureScreen() {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         setCapturedImage(dataUrl);
+        setCapturedDocument(null);
         stopAllStreams();
       }
     }
   };
 
-  // Gallery Select
+  // Gallery Select (Image Upload)
   const handleGallerySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCapturedBlob(file);
+    setCapturedDocument(null);
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -192,6 +257,39 @@ export default function CaptureScreen() {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  // Document Select (PDF, Word, Excel, Text)
+  const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    stopAllStreams();
+    setCapturedBlob(file);
+    setCapturedImage(null);
+    setCapturedVideoUrl(null);
+    setCapturedAudioUrl(null);
+    setScannedQrCode(null);
+
+    let objectUrl: string | undefined = undefined;
+    try {
+      objectUrl = URL.createObjectURL(file);
+    } catch {}
+
+    setCapturedDocument({
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      url: objectUrl,
+    });
+    addNotification({ type: 'success', message: `Document attached: ${file.name}` });
+  };
+
+  // Helper to format file sizes
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // Start Video / Audio Recording
@@ -264,6 +362,7 @@ export default function CaptureScreen() {
     setCapturedAudioUrl(null);
     setCapturedBlob(null);
     setScannedQrCode(null);
+    setCapturedDocument(null);
     setIsRecording(false);
     setRecordingSeconds(0);
 
@@ -271,6 +370,7 @@ export default function CaptureScreen() {
     else if (mode === 'video') startCamera(true);
     else if (mode === 'voice') startAudioOnly();
     else if (mode === 'qr') startQrScanner();
+    else if (mode === 'document') stopAllStreams();
   };
 
   // Format seconds as mm:ss
@@ -280,7 +380,7 @@ export default function CaptureScreen() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const hasCapturedResult = capturedImage || capturedVideoUrl || capturedAudioUrl || scannedQrCode;
+  const hasCapturedResult = capturedImage || capturedVideoUrl || capturedAudioUrl || scannedQrCode || capturedDocument;
 
   // Submit Handler
   const handleSubmit = async () => {
@@ -290,18 +390,28 @@ export default function CaptureScreen() {
       return;
     }
     setSubmitting(true);
+    let payload: any = null;
 
     try {
-      // Get Location
-      let gps = { lat: 0, lng: 0 };
-      if (navigator.geolocation) {
+      // Get Location (uses pre-fetched device GPS or project site fallback)
+      let gps = gpsCoords || { lat: 27.47, lng: 94.92 };
+      if (!gpsCoords && typeof navigator !== 'undefined' && navigator.geolocation) {
         try {
           const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 2000,
+              maximumAge: 600000,
+            });
           });
-          gps = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          gps = {
+            lat: Number(pos.coords.latitude.toFixed(6)),
+            lng: Number(pos.coords.longitude.toFixed(6)),
+          };
+          setGpsCoords(gps);
         } catch {
-          addNotification({ type: 'warning', message: 'GPS coordinates unavailable. Submitting with default location.' });
+          // Silently default to project site coordinates
+          gps = { lat: 27.47, lng: 94.92 };
         }
       }
 
@@ -309,10 +419,19 @@ export default function CaptureScreen() {
       let filename: string;
       let backendMediaType: string = mode;
 
-      if (mode === 'photo' && capturedImage) {
-        const res = await fetch(capturedImage);
-        uploadBlob = await res.blob();
-        filename = `capture_${Date.now()}.jpg`;
+      if (capturedDocument && capturedBlob) {
+        uploadBlob = capturedBlob;
+        filename = capturedDocument.name;
+        backendMediaType = 'document';
+      } else if (mode === 'photo' && capturedImage) {
+        if (capturedBlob) {
+          uploadBlob = capturedBlob;
+          filename = `capture_${Date.now()}.jpg`;
+        } else {
+          const res = await fetch(capturedImage);
+          uploadBlob = await res.blob();
+          filename = `capture_${Date.now()}.jpg`;
+        }
       } else if (mode === 'video' && capturedBlob) {
         uploadBlob = capturedBlob;
         filename = `capture_${Date.now()}.mp4`;
@@ -324,19 +443,23 @@ export default function CaptureScreen() {
         const qrJson = JSON.stringify({ qr: scannedQrCode, timestamp: new Date().toISOString() });
         uploadBlob = new Blob([qrJson], { type: 'application/json' });
         filename = `qr_${Date.now()}.json`;
+      } else if (capturedBlob) {
+        uploadBlob = capturedBlob;
+        filename = `data_${Date.now()}.bin`;
       } else {
         uploadBlob = new Blob([''], { type: 'text/plain' });
         filename = `data_${Date.now()}.bin`;
       }
 
-      const payload = {
+      payload = {
         id: crypto.randomUUID(),
         projectId: selectedProjectId,
-        mediaType: mode,
+        mediaType: backendMediaType,
         mediaBlob: uploadBlob,
         notes,
         gps,
-        queuedAt: new Date().toISOString()
+        queuedAt: new Date().toISOString(),
+        filename
       };
 
       if (isOffline) {
@@ -359,9 +482,34 @@ export default function CaptureScreen() {
         router.push(`/engineer/confirmation/${response.data.id || payload.id}`);
       }
     } catch (error: any) {
+      const isNetworkError = !error.response || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error');
+      if (isNetworkError && payload) {
+        try {
+          await offlineService.saveToQueue(payload);
+          addToQueue(payload);
+          addNotification({ 
+            type: 'warning', 
+            message: 'Server unreachable. Capture safely stored in local sync queue.' 
+          });
+          router.push('/engineer/home');
+          return;
+        } catch (queueErr) {
+          console.error('Failed to store in offline queue:', queueErr);
+        }
+      }
+
+      let errorMsg = 'Failed to submit capture.';
+      if (typeof error.response?.data?.detail === 'string') {
+        errorMsg = error.response.data.detail;
+      } else if (Array.isArray(error.response?.data?.detail)) {
+        errorMsg = error.response.data.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+
       addNotification({ 
         type: 'error', 
-        message: error.response?.data?.detail || 'Failed to submit capture. Stored in local sync queue.' 
+        message: errorMsg,
       });
     } finally {
       setSubmitting(false);
@@ -382,7 +530,8 @@ export default function CaptureScreen() {
           <span className="text-white font-bold text-sm tracking-wide">
             {mode === 'photo' ? 'Photo Evidence' :
              mode === 'video' ? 'Video Evidence' :
-             mode === 'voice' ? 'Voice Note' : 'QR Activity Scan'}
+             mode === 'voice' ? 'Voice Note' : 
+             mode === 'qr' ? 'QR Activity Scan' : 'Site Document'}
           </span>
           {isRecording && (
             <span className="flex items-center gap-1.5 bg-danger/80 text-white text-[11px] font-bold px-2 py-0.5 rounded-full animate-pulse border border-danger">
@@ -391,7 +540,15 @@ export default function CaptureScreen() {
             </span>
           )}
         </div>
-        <div className="w-10 h-10" />
+
+        <div className="flex items-center justify-end">
+          <div className="flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-800/80 border border-white/10 backdrop-blur-md">
+            <MapPin className={`w-3 h-3 ${gpsStatus === 'ready' ? 'text-emerald-400' : 'text-sky-400'}`} />
+            <span className={gpsStatus === 'ready' ? 'text-emerald-300 font-semibold text-[10px]' : 'text-slate-300 text-[10px]'}>
+              {gpsStatus === 'ready' ? 'GPS Active' : 'Site GPS'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Main Viewfinder Section */}
@@ -439,6 +596,59 @@ export default function CaptureScreen() {
           </div>
         )}
 
+        {/* DOCUMENT PREVIEW CARD */}
+        {capturedDocument && (
+          <div className="flex flex-col items-center justify-center p-6 text-center text-white space-y-4 max-w-sm w-full animate-in zoom-in-95">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-2xl bg-blue-500/20 border-2 border-blue-500/40 flex items-center justify-center text-blue-400 shadow-xl shadow-blue-500/10">
+                <FileText className="w-10 h-10" />
+              </div>
+              <div className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-white/20">
+                {capturedDocument.name.split('.').pop() || 'DOC'}
+              </div>
+            </div>
+
+            <div className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-left space-y-2 backdrop-blur-md">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">Document Attached</span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  Ready to Submit
+                </span>
+              </div>
+              <p className="font-semibold text-white text-sm truncate" title={capturedDocument.name}>
+                {capturedDocument.name}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span>{formatFileSize(capturedDocument.size)}</span>
+                <span>•</span>
+                <span className="uppercase">{capturedDocument.name.split('.').pop() || 'File'}</span>
+              </div>
+
+              {capturedDocument.url && (
+                <div className="pt-2 border-t border-slate-800">
+                  <a 
+                    href={capturedDocument.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-orange-400 hover:text-orange-300 font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <span>Preview Document</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => documentRef.current?.click()}
+              className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Choose different file</span>
+            </button>
+          </div>
+        )}
+
         {/* LIVE CAMERA VIEWFINDER (Photo / Video mode) */}
         {!hasCapturedResult && (mode === 'photo' || mode === 'video') && (
           <>
@@ -456,16 +666,72 @@ export default function CaptureScreen() {
               ))}
             </div>
 
+            {/* Quick action floating pills on top of camera for Photo mode */}
+            {mode === 'photo' && (
+              <div className="absolute top-16 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-md p-1 rounded-full border border-white/15">
+                <button 
+                  onClick={() => startCamera(false)}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white text-black transition-all shadow"
+                >
+                  <Camera className="w-3 h-3" />
+                  <span>Live Camera</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => galleryRef.current?.click()}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 flex items-center gap-1.5 transition-all"
+                >
+                  <ImageIcon className="w-3 h-3 text-sky-400" />
+                  <span>Upload Image</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => documentRef.current?.click()}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/10 flex items-center gap-1.5 transition-all"
+                >
+                  <FileText className="w-3 h-3 text-emerald-400" />
+                  <span>Upload Doc</span>
+                </button>
+              </div>
+            )}
+
             {!stream && (
-              <button 
-                onClick={() => startCamera(mode === 'video')}
-                className="absolute inset-0 flex items-center justify-center bg-black/60 text-white z-20"
-              >
-                <div className="flex flex-col items-center">
-                  <Camera className="w-12 h-12 mb-2 opacity-60" />
-                  <span className="text-sm font-semibold">Tap to Activate Camera</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 text-white z-20 p-6">
+                <div className="w-14 h-14 rounded-full bg-slate-800/90 border border-slate-700 flex items-center justify-center mb-3 text-orange-400 shadow-lg">
+                  <Camera className="w-7 h-7" />
                 </div>
-              </button>
+                <h3 className="text-sm font-bold mb-1">Camera Stream Inactive</h3>
+                <p className="text-xs text-slate-400 text-center max-w-xs mb-5">
+                  Activate camera to snap live evidence, or upload a photo or document directly from your device.
+                </p>
+                <div className="flex flex-col gap-2.5 w-full max-w-xs">
+                  <button 
+                    onClick={() => startCamera(mode === 'video')}
+                    className="w-full py-2.5 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/25"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Activate Camera</span>
+                  </button>
+                  <div className="flex gap-2 w-full">
+                    <button 
+                      type="button"
+                      onClick={() => galleryRef.current?.click()}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 border border-slate-700 transition-all"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Upload Image</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => documentRef.current?.click()}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 border border-slate-700 transition-all"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Upload Doc</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </>
         )}
@@ -500,6 +766,37 @@ export default function CaptureScreen() {
               <span className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md">
                 Align QR Code within the targeting box
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* DOCUMENT MODE DROPZONE / BROWSER */}
+        {!hasCapturedResult && mode === 'document' && (
+          <div className="flex flex-col items-center justify-center p-6 text-center text-white space-y-5 max-w-sm w-full">
+            <div 
+              onClick={() => documentRef.current?.click()}
+              className="w-full p-8 border-2 border-dashed border-slate-700 hover:border-orange-500/70 bg-slate-900/60 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-slate-900/90 group"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-400 mb-4 group-hover:scale-105 transition-transform">
+                <FileUp className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-white mb-1">Select Site Document</h3>
+              <p className="text-xs text-slate-400 max-w-xs mb-4">
+                Inspection reports, delivery challans, drawings, or test certificates
+              </p>
+              <div className="flex flex-wrap gap-1.5 justify-center mb-4">
+                {['PDF', 'DOCX', 'XLSX', 'CSV', 'TXT'].map((ext) => (
+                  <span key={ext} className="text-[10px] font-bold font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
+                    {ext}
+                  </span>
+                ))}
+              </div>
+              <button 
+                type="button" 
+                className="px-4 py-2 rounded-xl bg-orange-500 text-white text-xs font-bold shadow-lg shadow-orange-500/20 group-hover:bg-orange-600 transition-colors"
+              >
+                Browse Files
+              </button>
             </div>
           </div>
         )}
@@ -550,12 +847,13 @@ export default function CaptureScreen() {
           /* Capture Controls & Mode Selector */
           <div className="p-6">
             {/* Mode Switcher */}
-            <div className="flex justify-center gap-6 mb-6">
+            <div className="flex justify-center gap-5 mb-6">
               {[
                 { id: 'photo', icon: Camera, label: 'Photo' },
                 { id: 'video', icon: Video, label: 'Video' },
                 { id: 'voice', icon: Mic, label: 'Voice' },
                 { id: 'qr', icon: QrCode, label: 'QR Scan' },
+                { id: 'document', icon: FileText, label: 'Document' },
               ].map((m) => {
                 const Icon = m.icon;
                 const isActive = mode === m.id;
@@ -578,80 +876,130 @@ export default function CaptureScreen() {
             </div>
 
             {/* Shutter / Trigger Controls */}
-            <div className="flex justify-center items-center gap-8 mb-4">
-              {/* Gallery upload (Only for photo mode) */}
-              {mode === 'photo' ? (
+            <div className="flex justify-center items-center gap-7 mb-4">
+              {/* Hidden file inputs */}
+              <input
+                ref={galleryRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleGallerySelect}
+              />
+              <input
+                ref={documentRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf"
+                className="hidden"
+                onChange={handleDocumentSelect}
+              />
+
+              {/* Photo Mode Controls: Upload Image (Left) + Shutter (Center) + Upload Document (Right) */}
+              {mode === 'photo' && (
                 <>
-                  <input
-                    ref={galleryRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleGallerySelect}
-                  />
+                  {/* Upload Image Button */}
                   <button
                     type="button"
                     onClick={() => galleryRef.current?.click()}
-                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-white"
+                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-white transition-colors group"
+                    title="Upload existing image"
                   >
-                    <div className="w-11 h-11 rounded-full border border-slate-700 flex items-center justify-center bg-slate-800">
-                      <ImageIcon className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-full border border-slate-700 flex items-center justify-center bg-slate-800 group-hover:bg-slate-700 group-hover:border-sky-500/50 transition-all shadow-md">
+                      <ImageIcon className="w-5 h-5 group-hover:text-sky-400 transition-colors" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Gallery</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Image</span>
+                  </button>
+
+                  {/* Main Shutter Button */}
+                  <button 
+                    onClick={takePhoto}
+                    disabled={!stream}
+                    className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform disabled:opacity-50 hover:border-orange-500/50 shadow-xl"
+                    title="Take live photo"
+                  >
+                    <div className="w-full h-full rounded-full bg-white shadow-lg" />
+                  </button>
+
+                  {/* Upload Document Button */}
+                  <button
+                    type="button"
+                    onClick={() => documentRef.current?.click()}
+                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-white transition-colors group"
+                    title="Upload document (PDF, Word, Excel)"
+                  >
+                    <div className="w-12 h-12 rounded-full border border-slate-700 flex items-center justify-center bg-slate-800 group-hover:bg-slate-700 group-hover:border-emerald-500/50 transition-all shadow-md">
+                      <FileText className="w-5 h-5 group-hover:text-emerald-400 transition-colors" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Document</span>
                   </button>
                 </>
-              ) : (
-                <div className="w-11" />
               )}
 
-              {/* Main Shutter Button based on mode */}
-              {mode === 'photo' && (
-                <button 
-                  onClick={takePhoto}
-                  disabled={!stream}
-                  className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  <div className="w-full h-full rounded-full bg-white shadow-lg" />
-                </button>
-              )}
-
+              {/* Video Mode Controls */}
               {mode === 'video' && (
-                <button 
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={!stream}
-                  className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  {isRecording ? (
-                    <div className="w-8 h-8 rounded-lg bg-danger shadow-lg shadow-danger/50" />
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-danger shadow-lg shadow-danger/50" />
-                  )}
-                </button>
+                <>
+                  <div className="w-12" />
+                  <button 
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={!stream}
+                    className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    {isRecording ? (
+                      <div className="w-8 h-8 rounded-lg bg-danger shadow-lg shadow-danger/50" />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-danger shadow-lg shadow-danger/50" />
+                    )}
+                  </button>
+                  <div className="w-12" />
+                </>
               )}
 
+              {/* Voice Mode Controls */}
               {mode === 'voice' && (
-                <button 
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={!stream}
-                  className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  {isRecording ? (
-                    <div className="w-8 h-8 rounded-lg bg-danger shadow-lg shadow-danger/50" />
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-orange-500 shadow-lg shadow-orange-500/50 flex items-center justify-center text-white">
-                      <Mic className="w-8 h-8" />
-                    </div>
-                  )}
-                </button>
+                <>
+                  <div className="w-12" />
+                  <button 
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={!stream}
+                    className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    {isRecording ? (
+                      <div className="w-8 h-8 rounded-lg bg-danger shadow-lg shadow-danger/50" />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-orange-500 shadow-lg shadow-orange-500/50 flex items-center justify-center text-white">
+                        <Mic className="w-8 h-8" />
+                      </div>
+                    )}
+                  </button>
+                  <div className="w-12" />
+                </>
               )}
 
+              {/* QR Mode Controls */}
               {mode === 'qr' && (
-                <div className="w-20 h-20 rounded-full border-2 border-slate-800 flex items-center justify-center text-slate-500 text-xs text-center font-bold">
-                  Scanning
-                </div>
+                <>
+                  <div className="w-12" />
+                  <div className="w-20 h-20 rounded-full border-2 border-slate-800 flex items-center justify-center text-slate-500 text-xs text-center font-bold">
+                    Scanning
+                  </div>
+                  <div className="w-12" />
+                </>
               )}
 
-              <div className="w-11" />
+              {/* Document Mode Controls */}
+              {mode === 'document' && (
+                <>
+                  <div className="w-12" />
+                  <button 
+                    type="button"
+                    onClick={() => documentRef.current?.click()}
+                    className="w-20 h-20 rounded-full border-4 border-slate-700 flex items-center justify-center p-1 active:scale-95 transition-transform hover:border-orange-500/50 bg-slate-800 text-orange-400 shadow-xl"
+                    title="Upload document"
+                  >
+                    <Upload className="w-8 h-8" />
+                  </button>
+                  <div className="w-12" />
+                </>
+              )}
             </div>
           </div>
         )}

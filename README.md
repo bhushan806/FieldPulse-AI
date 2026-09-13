@@ -306,13 +306,33 @@ FieldPulse-AI/
 ## 🚀 Getting Started & Local Development
 
 ### Prerequisites
-* **Node.js**: v18.17.0+ (v20+ recommended)
-* **Python**: v3.11+ or v3.12+
-* **MongoDB**: A running MongoDB instance (or free MongoDB Atlas cluster)
+* **Option A (Docker - Recommended)**: [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Docker Compose v2+)
+* **Option B (Manual)**: Node.js v18.17.0+, Python v3.11+, and MongoDB
 
 ---
 
-### 1. Clone the Repository
+### 🐳 Option A: 1-Command Setup with Docker (Fastest)
+
+Run the entire platform (MongoDB + FastAPI Backend + Next.js Frontend) with a single command:
+
+```bash
+# 1. Clone repo
+git clone https://github.com/bhushan806/FieldPulse-AI.git
+cd FieldPulse-AI
+
+# 2. Build and launch all services
+docker compose up --build
+```
+
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend API & Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Database**: Automatically provisions and seeds demo users, projects, and activities!
+
+---
+
+### 💻 Option B: Manual Local Setup (Without Docker)
+
+#### 1. Clone the Repository
 ```bash
 git clone https://github.com/bhushan806/FieldPulse-AI.git
 cd FieldPulse-AI

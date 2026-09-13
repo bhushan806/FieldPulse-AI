@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, X, Filter, ChevronRight, AlertCircle, Camera, CheckSquare } from 'lucide-react';
+import { Check, X, Filter, ChevronRight, AlertCircle, Camera, CheckSquare, FileText, ExternalLink } from 'lucide-react';
 import { ReviewQueueItem } from '@/types/api';
 import { listReviewQueue, approveCapture, rejectCapture } from '@/lib/api/dashboard';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
@@ -159,10 +159,32 @@ export default function ReviewQueue() {
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col xl:flex-row gap-6">
               {/* Media Section */}
               <div className="w-full xl:w-1/2 space-y-4">
-                <div className="rounded-xl overflow-hidden bg-bg-muted border border-border aspect-video relative group shadow-sm">
-                  <img src={selectedItem.mediaUrl} alt="Capture" className="w-full h-full object-cover" />
+                <div className="rounded-xl overflow-hidden bg-bg-muted border border-border aspect-video relative group shadow-sm flex items-center justify-center">
+                  {(selectedItem.mediaType as any) === 'document' || selectedItem.mediaUrl?.toLowerCase().endsWith('.pdf') ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center space-y-3">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-400">Attached Site Document</p>
+                        <p className="text-sm font-bold text-white truncate max-w-xs">{selectedItem.mediaUrl.split('/').pop() || 'Document'}</p>
+                      </div>
+                      <a 
+                        href={selectedItem.mediaUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
+                      >
+                        <span>View / Download Document</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  ) : (
+                    <img src={selectedItem.mediaUrl} alt="Capture" className="w-full h-full object-cover" />
+                  )}
                   <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-text-primary text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-white/20">
-                    <Camera className="w-3.5 h-3.5" /> Photo
+                    {(selectedItem.mediaType as any) === 'document' ? <FileText className="w-3.5 h-3.5 text-blue-600" /> : <Camera className="w-3.5 h-3.5" />}
+                    {(selectedItem.mediaType as any) === 'document' ? ' Document' : ' Photo'}
                   </div>
                 </div>
                 

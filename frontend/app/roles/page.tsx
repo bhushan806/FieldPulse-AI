@@ -248,10 +248,7 @@ export default function RolesGuidePage() {
       <footer className="py-8 px-6 bg-surface border-t border-border mt-20">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <FieldPulseLogo size="sm" />
-          <p className="text-xs text-text-muted text-center font-medium">
-            Built for SIH 2026 · Problem Statement SIH26122 · Oil India Limited.
-          </p>
-          <p className="text-xs font-semibold text-text-muted">© 2026 FieldPulse AI Inc.</p>
+          <p className="text-xs font-semibold text-text-muted">© 2026 FieldPulse AI Inc. All rights reserved.</p>
         </div>
       </footer>
 
